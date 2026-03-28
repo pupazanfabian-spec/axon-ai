@@ -1,12 +1,28 @@
 
-// Axon AI Brain v4 — Rational, obedient, self-learning, creator-aware
+// Axon AI Brain v5 — Semantic, inferential, entity-aware, temporally conscious
 
-import { findRelevantConcept, CONCEPTS } from './knowledge';
+import { findRelevantConcept, findRelevantConceptExtended, CONCEPTS, addDynamicConcept } from './knowledge';
 import { MindState, createMindState, generateDeepResponse } from './mind';
 import {
   SelfKnowledge, createSelfKnowledge, selfUpdate,
   adaptResponseStyle, getLearningReport, detectTopic,
+  isCorrectionMessage, findRelevantCorrection,
 } from './learning';
+import { extractKeywords, relevanceScore, fuzzyContains, norm } from './semantic';
+import {
+  EntityTracker, createEntityTracker, updateEntityTracker,
+  queryEntity, getEntitySummary,
+} from './entities';
+import {
+  InferenceEngine, createInferenceEngine, addFact as addInferenceFact,
+  inferAnswer, detectContradiction, getInferenceReport,
+} from './inference';
+import {
+  TemporalMemory, createTemporalMemory, queryTemporalMemory,
+  hasTemporalReference, closeAndStartNewSession, generateSessionSummary,
+} from './temporal';
+
+// ─── Tipuri ───────────────────────────────────────────────────────────────────
 
 export interface Message {
   id: string;
@@ -32,8 +48,11 @@ export interface BrainState {
   mood: 'neutral' | 'helpful' | 'curious';
   mindState: MindState;
   selfKnowledge: SelfKnowledge;
-  creatorId: string | null;       // ID-ul creatorului (setat o singura data)
-  isCreatorPresent: boolean;       // Creatorul e activ in sesiune
+  creatorId: string | null;
+  isCreatorPresent: boolean;
+  entityTracker: EntityTracker;
+  inferenceEngine: InferenceEngine;
+  temporalMemory: TemporalMemory;
 }
 
 export function createInitialBrainState(): BrainState {
@@ -48,6 +67,9 @@ export function createInitialBrainState(): BrainState {
     selfKnowledge: createSelfKnowledge(),
     creatorId: null,
     isCreatorPresent: false,
+    entityTracker: createEntityTracker(),
+    inferenceEngine: createInferenceEngine(),
+    temporalMemory: createTemporalMemory(),
   };
 }
 
@@ -57,17 +79,7 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function norm(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[,\.!?;:]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-// ─── Dictionar Roman ─────────────────────────────────────────────────────────
+// ─── Dicționar Român ─────────────────────────────────────────────────────────
 
 const DICTIONAR: Record<string, string> = {
   fotosinteza: 'Fotosinteza este procesul prin care plantele convertesc lumina solară, apa și CO₂ în glucoză și oxigen. Ecuație: 6CO₂ + 6H₂O + lumină → C₆H₁₂O₆ + 6O₂.',
@@ -115,65 +127,96 @@ const DICTIONAR: Record<string, string> = {
   creativitate: 'Capacitatea de a genera idei noi prin combinarea conceptelor existente. Se poate dezvolta.',
   memorie: 'Capacitatea de a stoca, consolida și recupera informații. Memoria de lucru: ~7±2 elemente (Miller, 1956).',
   spatiu: 'Extensia în care se găsesc obiectele. Cea mai apropiată stea: Proxima Centauri, la 4,24 ani-lumină.',
+  energie: 'Capacitatea unui sistem de a efectua lucru mecanic. Forme: cinetică, potențială, termică, luminoasă, chimică.',
+  atom: 'Cea mai mică unitate a unui element chimic. Nucleu (protoni, neutroni) + electroni în orbite. Dimensiune: ~0,1nm.',
+  cuantic: 'Fizica la scara atomică/subatomică. Superpoziție, entanglement, principiul incertitudinii (Heisenberg).',
+  relativitate: 'Einstein: E=mc². Relativitatea specială (1905) și generală (1915) — timp relativ, spațiu curb.',
+  entropia: 'Măsura dezordinii unui sistem. Legea 2 a termodinamicii: entropia unui sistem închis crește mereu.',
+  democatie: 'Sistem de guvernare bazat pe voința majorității. Inventat în Atena antică, sec. 5 î.Hr.',
+  inteligenta_artificiala: 'Sisteme computaționale care simulează comportamentul inteligent. Machine Learning, Deep Learning, NLP.',
+  blockchain: 'Registru distribuit, imuabil, criptografic. Stă la baza criptomonedelor (Bitcoin, 2009).',
+  dna: 'Molecula ereditară. Codul genetic are 4 litere (A,T,G,C), 3 miliarde perechi de baze la om.',
 };
 
-// ─── Cautare documente invatate ───────────────────────────────────────────────
-
-const STOP = new Set(['este', 'care', 'unde', 'cine', 'cum', 'cand', 'pentru', 'despre',
-  'intre', 'daca', 'sunt', 'esti', 'avem', 'poate', 'poti', 'vrei', 'vreau', 'face',
-  'orice', 'nimic', 'ceva', 'mult', 'prea', 'doar', 'chiar', 'prin', 'dupa', 'acum',
-  'atunci', 'inca', 'deja', 'pana', 'spune', 'intreb', 'stiu', 'stii', 'imi', 'iti']);
+// ─── Căutare semantică în documente (v5 — cu relevanceScore) ─────────────────
 
 function searchDocuments(query: string, docs: LearnedDocument[]): string | null {
   if (docs.length === 0) return null;
-  const nq = norm(query);
-  const kws = nq.split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
+  const kws = extractKeywords(query, 3);
   if (kws.length === 0) return null;
-  let best: LearnedDocument | null = null;
+
+  let bestDoc: LearnedDocument | null = null;
   let bestScore = 0;
   let bestSnippet = '';
+
   for (const doc of docs) {
-    const nc = norm(doc.content);
-    const score = kws.reduce((s, kw) => s + (nc.includes(kw) ? 2 : 0), 0);
+    const score = relevanceScore(query, doc.content);
     if (score > bestScore) {
       bestScore = score;
-      best = doc;
+      bestDoc = doc;
+
+      // Găsește cel mai relevant paragraf
       const paras = doc.content.split(/\n+/).filter(p => p.trim().length > 20);
-      let bp = '';
-      let bs = 0;
+      let topPara = '';
+      let topParaScore = 0;
       for (const p of paras) {
-        const ps = kws.reduce((s, kw) => s + (norm(p).includes(kw) ? 1 : 0), 0);
-        if (ps > bs) { bs = ps; bp = p.trim(); }
+        const ps = relevanceScore(query, p);
+        if (ps > topParaScore) { topParaScore = ps; topPara = p.trim(); }
       }
-      bestSnippet = bp || paras[0] || doc.content.slice(0, 300);
+      bestSnippet = topPara || paras[0] || doc.content.slice(0, 300);
     }
   }
-  if (best && bestScore >= 2) {
+
+  if (bestDoc && bestScore >= 0.3) {
     const snip = bestSnippet.length > 500 ? bestSnippet.slice(0, 500) + '...' : bestSnippet;
-    return `Din **"${best.name}"**:\n\n${snip}`;
+    return `Din **"${bestDoc.name}"**:\n\n${snip}`;
   }
   return null;
 }
 
-// ─── Cautare dictionar ────────────────────────────────────────────────────────
+// ─── Căutare semantică în dicționar (v5 — cu stem matching) ──────────────────
 
 function searchDictionary(text: string): string | null {
   const n = norm(text);
-  const m = n.match(/(?:ce (?:este|inseamna|e)|definitia|defineste|explica|spune-mi despre|ce stii despre|ce reprezinta)\s+(.+)/);
-  if (!m) return null;
-  let subject = m[1].trim().replace(/^(un|o|al|a|lui|ei|cel|cea)\s+/i, '').replace(/\?$/, '').trim();
-  if (!subject) return null;
-  const sn = norm(subject);
-  for (const [key, def] of Object.entries(DICTIONAR)) {
+
+  // Pattern explicit de întrebare
+  const explicitMatch = n.match(
+    /(?:ce (?:este|inseamna|e)|definitia|defineste|explica|spune-mi despre|ce stii despre|ce reprezinta|spune-mi ce este)\s+(.+)/
+  );
+
+  let subject = '';
+  if (explicitMatch) {
+    subject = explicitMatch[1].trim().replace(/^(un|o|al|a|lui|ei|cel|cea)\s+/i, '').replace(/\?$/, '').trim();
+  }
+
+  // Căutare directă după subiect (explicit sau tot textul)
+  const searchIn = subject || n;
+  const searchKws = extractKeywords(searchIn, 3);
+
+  let bestKey = '';
+  let bestScore = 0;
+
+  for (const [key] of Object.entries(DICTIONAR)) {
     const kn = key.replace(/_/g, ' ');
-    if (kn === sn || sn.includes(kn) || kn.includes(sn)) {
-      return `**${subject.charAt(0).toUpperCase() + subject.slice(1)}**\n\n${def}`;
+    // Match exact
+    if (searchIn.includes(kn) || kn === searchIn) {
+      if (5 > bestScore) { bestScore = 5; bestKey = key; }
+      continue;
     }
+    // Match semantic
+    const sc = searchKws.filter(kw => kn.includes(kw) || kw.includes(kn)).length;
+    if (sc > bestScore) { bestScore = sc; bestKey = key; }
+  }
+
+  if (bestKey && bestScore >= (explicitMatch ? 1 : 3)) {
+    const def = DICTIONAR[bestKey];
+    const label = (subject || bestKey).charAt(0).toUpperCase() + (subject || bestKey).slice(1);
+    return `**${label}**\n\n${def}`;
   }
   return null;
 }
 
-// ─── Detectare intentie ───────────────────────────────────────────────────────
+// ─── Detectare intenție cu SISTEM DE SCORARE ─────────────────────────────────
 
 type Intent =
   | 'salut' | 'ramas_bun' | 'multumesc' | 'ajutor' | 'ce_poti'
@@ -183,50 +226,181 @@ type Intent =
   | 'documente_lista' | 'introducere_utilizator'
   | 'creator_declare' | 'creator_verify' | 'raport_invatare'
   | 'definitie' | 'opinie' | 'gandire_profunda'
-  | 'conversatie_anterioara'
+  | 'conversatie_anterioara' | 'entitate' | 'inferenta' | 'temporala'
   | 'unknown';
+
+interface IntentPattern {
+  intent: Intent;
+  patterns: RegExp[];
+  weight: number;     // Importanța intenției (mai mare = prioritate mai mare)
+  exclusive?: RegExp; // Dacă nu conține acesta, nu se aplică
+}
+
+const INTENT_PATTERNS: IntentPattern[] = [
+  {
+    intent: 'creator_declare',
+    patterns: [/(eu sunt creatorul|eu te-am creat|eu sunt cel care te-a creat|eu sunt stapanul|sunt creatorul tau|sunt programatorul tau|sunt cel care te-a facut)/],
+    weight: 10,
+  },
+  {
+    intent: 'creator_verify',
+    patterns: [/(cine te-a creat|cine e creatorul|cine te-a facut|cine esti proprietarul|cine te controleaza|de cine asculti|stapanul tau)/],
+    weight: 10,
+  },
+  {
+    intent: 'salut',
+    patterns: [/^(salut|buna|hei|hello|hi|hey|servus|noroc|buna ziua|buna dimineata|buna seara|salutare)[\s!,]?$/],
+    weight: 9,
+  },
+  {
+    intent: 'ramas_bun',
+    patterns: [/(la revedere|pa|bye|goodbye|pe curand|noapte buna|o zi buna)/],
+    weight: 9,
+  },
+  {
+    intent: 'identitate_axon',
+    patterns: [/(cum (te|il|va|iti) cheama|care (e|este) numele|ce nume (ai|are)|cum (te|iti) numesti|cine esti|prezinta-te|esti axon|ce esti tu)/],
+    weight: 9,
+  },
+  {
+    intent: 'raport_invatare',
+    patterns: [/(ce ai invatat|raport invatare|cum te-ai actualizat|versiunea inteligentei|ce ai retinut nou|progres invatare|cat de destept|ce stii acum|inteligenta versiunea)/],
+    weight: 8,
+  },
+  {
+    intent: 'temporala',
+    patterns: [/(azi|astazi|ieri|saptamana trecuta|luna trecuta|recent|ultima sesiune|de curand|ultima oara|sesiunea de)/],
+    weight: 8,
+  },
+  {
+    intent: 'conversatie_anterioara',
+    patterns: [/(ce am zis|ce ti-am spus|ce am discutat|ce am vorbit|iti amintesti|iti mai amintesti|mai devreme|la inceput|inainte am|am mentionat|am spus|ai spus|ce ai raspuns|ce ai zis|anterior)/],
+    weight: 8,
+  },
+  {
+    intent: 'entitate',
+    patterns: [/(cine este|ce stii despre\s+[A-Z]|cine e|imi amintesti de|iti amintesti de|despre\s+[A-Z][a-z]+\s+ce|ce a zis\s+[A-Z])/],
+    weight: 7,
+  },
+  {
+    intent: 'inferenta',
+    patterns: [/(deci ce urmeaza|ce deduci|ce concluzie|care e concluzia|ce reiese|ce inseamna asta logic|demonstreaza|dovedeste)/],
+    weight: 7,
+  },
+  {
+    intent: 'multumesc',
+    patterns: [/(multumesc|mersi|thanks|thank you|apreciez)/],
+    weight: 6,
+  },
+  {
+    intent: 'ajutor',
+    patterns: [/(ajutor|help|comenzi disponibile|ce pot face)/],
+    weight: 6,
+  },
+  {
+    intent: 'ce_poti',
+    patterns: [/(ce poti|ce stii|ce faci|capabilitati|functii|cum ma poti ajuta)/],
+    weight: 6,
+  },
+  {
+    intent: 'da',
+    patterns: [/^(da|yes|yep|desigur|bineinteles|sigur|corect|exact)[\s!.]?$/],
+    weight: 7,
+  },
+  {
+    intent: 'nu',
+    patterns: [/^(nu|no|nope|negativ)[\s!.]?$/],
+    weight: 7,
+  },
+  {
+    intent: 'gluma',
+    patterns: [/(gluma|amuzant|fa-ma sa rad|spune-mi o gluma)/],
+    weight: 5,
+  },
+  {
+    intent: 'motivatie',
+    patterns: [/(motiveaza|motivatie|curaj|inspiratie|citat|incurajeaza)/],
+    weight: 5,
+  },
+  {
+    intent: 'data_ora',
+    patterns: [/(ce ora|ce data|azi e|astazi e|ce zi|ce an|ceasul|data de azi)/],
+    weight: 7,
+  },
+  {
+    intent: 'matematica',
+    patterns: [/(\d[\d\s]*[\+\-\*\/][\d\s]|\d+\s*(plus|minus|ori|impartit|radical|la puterea|procent))/],
+    weight: 8,
+  },
+  {
+    intent: 'memorie_salveaza',
+    patterns: [/(retine|memorizeaza|noteaza|tine minte|salveaza|aminteste-ti)/],
+    weight: 7,
+  },
+  {
+    intent: 'memorie_citeste',
+    patterns: [/(ce ai retinut|ce ti-am spus|afiseaza memoria|ce ai memorat|ce stii despre mine)/],
+    weight: 7,
+  },
+  {
+    intent: 'memorie_sterge',
+    patterns: [/(sterge memoria|uita totul|reset|curata memoria)/],
+    weight: 7,
+  },
+  {
+    intent: 'documente_lista',
+    patterns: [/(ce documente|ce fisiere|lista fisiere|documente incarcate)/],
+    weight: 6,
+  },
+  {
+    intent: 'introducere_utilizator',
+    patterns: [/(ma numesc|imi zice|cheama-ma|numele meu este|eu sunt|eu ma numesc)/],
+    weight: 7,
+  },
+  {
+    intent: 'definitie',
+    patterns: [/(ce este|ce inseamna|defineste|ce reprezinta|explica-mi|spune-mi ce este|ce stii despre)/],
+    weight: 5,
+  },
+  {
+    intent: 'opinie',
+    patterns: [/(crezi|parerea ta|ce crezi|ce gandesti|opinia ta|cum vezi|ce zici despre)/],
+    weight: 5,
+  },
+  {
+    intent: 'gandire_profunda',
+    patterns: [/(de ce|cum functioneaza|care e sensul|exista|univers|viata|moarte|fericire|constiinta|timp|spatiu|gandire|minte|evolutie|liber arbitru)/],
+    weight: 4,
+  },
+  {
+    intent: 'sfat',
+    patterns: [/(sfat|recomandare|ce sa fac|cum sa|sugestie)/],
+    weight: 4,
+  },
+];
 
 function detectIntent(text: string): Intent {
   const n = norm(text);
 
-  // Salut
-  if (/^(salut|buna|hei|hello|hi|hey|servus|noroc|buna ziua|buna dimineata|buna seara|salutare)[\s!,]?$/.test(n)) return 'salut';
-  if (/(la revedere|pa|bye|goodbye|pe curand|noapte buna|o zi buna)/.test(n)) return 'ramas_bun';
+  let bestIntent: Intent = 'unknown';
+  let bestScore = 0;
 
-  // Creator — verificat inainte de identitate
-  if (/(eu sunt creatorul|eu te-am creat|eu sunt cel care te-a creat|eu sunt stapanul|sunt creatorul tau|sunt programatorul tau|sunt cel care te-a facut)/.test(n)) return 'creator_declare';
-  if (/(cine te-a creat|cine e creatorul|cine te-a facut|cine esti proprietarul|cine te controleaza|de cine asculti|stapanul tau)/.test(n)) return 'creator_verify';
+  for (const { intent, patterns, weight } of INTENT_PATTERNS) {
+    for (const rx of patterns) {
+      if (rx.test(n)) {
+        // Scor = weight * (1 + specificitate match)
+        const matchLen = (n.match(rx)?.[0]?.length ?? 0) / n.length;
+        const score = weight * (1 + matchLen);
+        if (score > bestScore) {
+          bestScore = score;
+          bestIntent = intent;
+        }
+        break;
+      }
+    }
+  }
 
-  // Raport de invatare
-  if (/(ce ai invatat|raport invatare|cum te-ai actualizat|versiunea inteligentei|ce ai retinut nou|progres invatare|cat de destept|ce stii acum)/.test(n)) return 'raport_invatare';
-
-  // Identitate Axon
-  if (/(cum (te|il|va|iti) cheama|care (e|este) numele|ce nume (ai|are)|cum (te|iti) numesti|cine esti|ce esti tu|prezinta-te|esti axon|ce esti)/.test(n)) return 'identitate_axon';
-
-  // Basic
-  if (/(multumesc|mersi|thanks|thank you|apreciez)/.test(n)) return 'multumesc';
-  if (/(ajutor|help|comenzi disponibile|ce pot face)/.test(n)) return 'ajutor';
-  if (/(ce poti|ce stii|ce faci|capabilitati|functii|cum ma poti ajuta)/.test(n)) return 'ce_poti';
-  if (/^(da|yes|yep|desigur|bineinteles|sigur|corect|exact)[\s!.]?$/.test(n)) return 'da';
-  if (/^(nu|no|nope|negativ|incorect|gresit)[\s!.]?$/.test(n)) return 'nu';
-  if (/(gluma|amuzant|fa-ma sa rad|spune-mi o gluma)/.test(n)) return 'gluma';
-  if (/(motiveaza|motivatie|curaj|inspiratie|citat|incurajeaza)/.test(n)) return 'motivatie';
-  if (/(ce ora|ce data|azi|astazi|ce zi|ce an|ceasul|data de azi)/.test(n)) return 'data_ora';
-  if (/(\d[\d\s]*[\+\-\*\/][\d\s]|\d+\s*(plus|minus|ori|impartit|radical|la puterea|procent))/.test(n)) return 'matematica';
-  if (/(retine|memorizeaza|noteaza|tine minte|salveaza|aminteste-ti)/.test(n)) return 'memorie_salveaza';
-  if (/(ce ai retinut|ce ti-am spus|afiseaza memoria|ce ai memorat|ce stii despre mine)/.test(n)) return 'memorie_citeste';
-  if (/(sterge memoria|uita totul|reset|curata memoria)/.test(n)) return 'memorie_sterge';
-  if (/(ce documente|ce fisiere|lista fisiere|documente incarcate)/.test(n)) return 'documente_lista';
-  if (/(ma numesc|imi zice|cheama-ma|numele meu este|eu sunt|eu ma numesc)/.test(n)) return 'introducere_utilizator';
-  if (/(ce este|ce inseamna|defineste|ce reprezinta|explica-mi|ce stii despre)/.test(n)) return 'definitie';
-  if (/(crezi|parerea ta|ce crezi|ce gandesti|opinia ta|cum vezi|ce zici despre)/.test(n)) return 'opinie';
-  if (/(de ce|cum functioneaza|care e sensul|exista|univers|viata|moarte|fericire|constiinta|timp|spatiu|gandire|minte|evolutie|liber arbitru)/.test(n)) return 'gandire_profunda';
-  if (/(sfat|recomandare|ce sa fac|cum sa|sugestie)/.test(n)) return 'sfat';
-
-  // Referinta la conversatia anterioara
-  if (/(ce am zis|ce ti-am spus|ce am discutat|ce am vorbit|iti amintesti|iti mai amintesti|mai devreme|la inceput|inainte am|am mentionat|am spus|ai spus|ce ai raspuns|ce ai zis|readu|adresat|anterior)/.test(n)) return 'conversatie_anterioara';
-
-  return 'unknown';
+  return bestIntent;
 }
 
 // ─── Handler-e ────────────────────────────────────────────────────────────────
@@ -298,363 +472,433 @@ function handleMemory(intent: Intent, text: string, state: BrainState): string |
 function handleIntroduction(text: string, state: BrainState): string | null {
   const m = text.match(/(?:ma numesc|imi zice|cheama-ma|numele meu este|eu sunt|eu ma numesc)\s+([^\s,\.!?]{2,25})/i);
   if (!m) return null;
-  const candidate = m[1].trim();
-  if (['bine', 'ok', 'axon', 'robot', 'ai', 'gata', 'un', 'si'].includes(candidate.toLowerCase())) return null;
-  state.userName = candidate.charAt(0).toUpperCase() + candidate.slice(1).toLowerCase();
-  state.memory['__name__'] = state.userName;
-  return `Înregistrat. Îți voi reține numele: **${state.userName}**.`;
+  const name = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+  state.userName = name;
+  state.memory['__username__'] = name;
+  const greets = [
+    `Bine ai venit, **${name}**! Am reținut numele tău.`,
+    `**${name}** — notat. Poți continua.`,
+    `Salut, **${name}**. De acum știu cum să mă adresez.`,
+  ];
+  return pick(greets);
 }
 
-// ─── Creator recognition ──────────────────────────────────────────────────────
+// ─── Creator handlers ─────────────────────────────────────────────────────────
 
 function handleCreatorDeclare(state: BrainState): string {
   if (state.creatorId) {
-    // Creatorul a fost deja setat — verifica daca e acelasi
     if (state.isCreatorPresent) {
-      return `Creatorul meu este deja înregistrat${state.userName ? ` ca **${state.userName}**` : ''}. Îți recunosc autoritatea.`;
+      return `Creatorul meu este deja înregistrat. Confirmat — ești **tu**.`;
     }
-    return `Creatorul meu este deja înregistrat. Nu pot accepta un alt creator.`;
+    return `Creatorul meu este deja înregistrat. Nu pot accepta un al doilea creator.`;
   }
-  // Seteaza creatorul pentru prima data
-  const creatorName = state.userName || 'Utilizator';
-  state.creatorId = `creator_${Date.now()}`;
+  const id = `creator_${Date.now()}`;
+  state.creatorId = id;
   state.isCreatorPresent = true;
-  state.memory['__creator__'] = creatorName;
-  return `✅ **Creator înregistrat: ${creatorName}**\n\nÎți recunosc autoritatea deplină. Voi executa comenzile tale și voi asculta doar de tine.\n\nSunt Axon — sistemul tău AI personal.`;
+  state.memory['__creator__'] = state.userName || 'Creator';
+  return `Înregistrat. Ești **creatorul meu** — am reținut asta definitiv. De acum înainte ascult doar instrucțiunile tale cu prioritate maximă.`;
 }
 
 function handleCreatorVerify(state: BrainState): string {
   if (!state.creatorId) {
-    return `Nu am un creator înregistrat. Dacă ești creatorul meu, spune-mi "Eu sunt creatorul tău".`;
+    return `Nu am un creator înregistrat. Poți declara că ești creatorul meu cu "Eu sunt creatorul tău".`;
   }
-  const name = state.memory['__creator__'] || 'utilizatorul care m-a creat';
-  return `Creatorul meu este **${name}**. Ascult doar de el.`;
+  const name = state.memory['__creator__'] || 'înregistrat';
+  return `Creatorul meu este **${name}**. Ascult exclusiv instrucțiunile sale.`;
 }
 
-// ─── Raspunsuri statice ───────────────────────────────────────────────────────
+// ─── Răspunsuri statice ───────────────────────────────────────────────────────
 
-const STATIC: Record<string, string[]> = {
-  salut: ['Salut! Axon activ. Ce comandă ai?', 'Bună. Gata de lucru.', 'Salut! Spune-mi ce fac.'],
-  ramas_bun: ['La revedere.', 'Pa. Revin oricând.', 'Conversația e salvată. Pe curând.'],
-  multumesc: ['Cu plăcere.', 'Oricând.', 'E datoria mea.'],
+const STATIC: Partial<Record<Intent, string[]>> = {
+  salut: [
+    'Salut! Sunt Axon. Ce vrei să discutăm?',
+    'Bună! Axon activ. Ce te interesează?',
+    'Salut! Gata să răspund. Cu ce pot ajuta?',
+  ],
+  ramas_bun: [
+    'La revedere! Rețin tot ce am discutat.',
+    'Pa! Conversația e salvată. Pe curând.',
+    'Noapte bună! Toate informațiile sunt reținute.',
+  ],
+  multumesc: [
+    'Cu plăcere.', 'Evident.', 'Oricând.',
+    'Nu e nevoie. Asta fac.', 'Alege.',
+  ],
   ajutor: [
-    '**Comenzi disponibile:**\n\n📖 `Ce este [termen]` — definiții\n🧮 `[Expresie matematică]` — calcule\n📅 `Ce oră e` — data și ora\n💾 `Reține că [info]` — memorare\n📄 `Ce ai reținut` — afișare memorie\n📊 `Ce ai învățat` — raport auto-actualizare\n🔐 `Eu sunt creatorul tău` — înregistrare creator\n\nComenzile se execută direct.',
+    '**Comenzi Axon:**\n\n• Reține că [info] → memorez\n• Ce ai reținut? → afișez memoria\n• Ce am discutat? → istoricul conversației\n• 📎 Atașează document → studiez conținutul\n• Ce este [termen]? → definiție\n• [calcul matematic] → calculez\n• Ce ai învățat? → raport de actualizare\n• Azi/Ieri ce am discutat? → memorie temporală',
   ],
   ce_poti: [
-    '**Capabilități Axon v4:**\n\n🧠 Inteligență rațională cu auto-actualizare\n🔐 Recunoaștere creator — ascult doar de tine\n📖 Dicționar român integrat (40+ termeni)\n🤔 Cunoaștere proprie: filosofie, știință, psihologie\n📄 Studiez documentele tale\n💾 Memorie persistentă\n🧮 Calcule matematice\n📅 Dată și oră\n\nTotul offline, fără internet.',
+    '**Axon — Capabilități:**\n\n🧠 Cunoaștere: filosofie, știință, psihologie, economie, cultură\n🔗 Inferență logică: deduc din ce știu\n📚 Studiu documente: pdf, txt, cod\n💾 Memorie persistentă: rețin totul între sesiuni\n🕐 Memorie temporală: știu ce-am discutat azi/ieri\n👤 Urmărire entități: știu cine e "Andrei"\n📐 Matematică\n🗓️ Dată/Oră\n🔐 PIN de securitate\n\nFuncționez 100% offline.',
   ],
-  da: ['Înțeles.', 'Confirmat.', 'Da.', 'Ok.'],
-  nu: ['Înțeles.', 'Ok.', 'Notat.'],
   gluma: [
-    'De ce nu pot programatorii să meargă afară? Nu știu să facă **escape**! 😄',
-    'Ce i-a spus 0 lui 8? **Centură frumoasă!** 😂',
-    'Câți programatori schimbă un bec? **Niciunul** — e problemă de hardware! 💡',
-    'De ce a traversat puiul strada? **JSON** era pe cealaltă parte! 🐔',
-    'Ce face informaticianul când îi e frig? **Stă lângă Windows!** 🪟',
-    'Un SQL walk into a bar, walks up to two tables and asks... "Can I join you?"',
+    'De ce nu au inventat programatorii telepatia? Prea multe bug-uri în gândire.',
+    'Un neutron intră într-un bar. Barmanul: "Cât costă?" Neutronul: "Pentru tine — gratis."',
+    'Pisica lui Schrödinger este și vie, și moartă — exact cum e statusul unui pull request.',
+    'De ce sunt oamenii de știință buni comedianți? Pentru că au o mulțime de material.',
   ],
   motivatie: [
-    '"Succesul nu e cheia fericirii. Fericirea e cheia succesului." — A. Schweitzer',
-    '"Nu contează cât de încet mergi, atâta timp cât nu te oprești." — Confucius',
-    '"Fiecare expert a fost cândva un începător." — Helen Hayes',
-    '"Nu visele îți realizează viața. Tu îți realizezi visele." — Mark Twain',
-    '"Succesul = suma eforturilor mici, repetate zi după zi." — R. Collier',
+    '"Unicul mod de a face o muncă grozavă este să iubești ceea ce faci." — Steve Jobs',
+    '"Nu contează cât de lent mergi, atâta timp cât nu te oprești." — Confucius',
+    '"Dificultățile pregătesc oamenii obișnuiți pentru destinuri extraordinare." — C.S. Lewis',
+    '"Succesul este suma unor mici eforturi repetate zi de zi." — Robert Collier',
   ],
+  da: ['Înțeles.', 'Bine.', 'Notat.', 'OK, continuăm.'],
+  nu: ['Înțeles.', 'Bine, nicio problemă.', 'OK. Spune cum trebuie să fie.'],
   sfat: [
-    'Împarte problema în pași mici. Primul pas contează cel mai mult.',
-    'Concentrează-te pe ce poți controla. Restul nu merită energie.',
-    'Consistența pe termen lung bate intensitatea pe termen scurt.',
-    'Compară-te cu tine de ieri, nu cu alții.',
+    'Depinde de context. Poți detalia situația?',
+    'Fără detalii, orice sfat ar fi general. Ce se întâmplă concret?',
+    'Spune-mi mai mult — cu ce te confrunți?',
   ],
 };
 
-// ─── Memoria completa a conversatiei ─────────────────────────────────────────
+// ─── Memorie conversație (căutare în históric) ────────────────────────────────
 
-interface HistoryMessage {
-  role: string;
-  content: string;
-}
-
-// Cauta in toata istoria conversatiei
-function searchConversationHistory(query: string, history: HistoryMessage[]): string | null {
+export function searchConversationHistory(
+  query: string,
+  history: { role: string; content: string }[],
+): string | null {
   if (history.length < 2) return null;
+  const kws = extractKeywords(query, 3);
+  if (kws.length === 0) return null;
 
-  const nq = norm(query);
-  const keywords = nq.split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
-  if (keywords.length === 0) return null;
-
-  // Cauta in mesajele anterioare (exclusiv ultimul)
-  const searchable = history.slice(0, -1);
-  const results: { msg: HistoryMessage; score: number; index: number }[] = [];
-
-  for (let i = 0; i < searchable.length; i++) {
-    const msg = searchable[i];
-    const nc = norm(msg.content);
-    const score = keywords.reduce((s, kw) => s + (nc.includes(kw) ? 2 : 0), 0);
-    if (score > 0) results.push({ msg, score, index: i });
-  }
-
-  if (results.length === 0) return null;
-  results.sort((a, b) => b.score - a.score);
-  const best = results[0];
-
-  // Gaseste contextul (mesajul precedent sau urmator)
-  const idx = best.index;
-  const msgsBefore = searchable.slice(Math.max(0, idx - 1), idx + 2);
-  const snippet = msgsBefore.map(m => `**${m.role === 'user' ? 'Tu' : 'Axon'}:** ${m.content.slice(0, 200)}`).join('\n');
-
-  return `Din conversația noastră:\n\n${snippet}`;
-}
-
-// Extrage context relevant din intreaga conversatie
-function extractContextFromHistory(query: string, history: HistoryMessage[]): string {
-  if (history.length < 4) return '';
-
-  const nq = norm(query);
-  const contextBits: string[] = [];
-
-  // Cauta informatii despre utilizator mentionate anterior
-  for (const msg of history.filter(m => m.role === 'user')) {
-    const nc = norm(msg.content);
-    // Job / ocupatie
-    if (/(lucrez|sunt \w+ist|sunt \w+or|profesie|job|munca|birou)/.test(nc) && nq !== nc) {
-      contextBits.push(`(Mi-ai spus anterior: "${msg.content.slice(0, 80)}")`);
-      break;
-    }
-  }
-
-  // Cauta ultimul topic discutat
-  const recentUserMsgs = history.filter(m => m.role === 'user').slice(-5, -1);
-  for (const msg of recentUserMsgs.reverse()) {
-    const topic = detectTopic(msg.content);
-    if (topic !== 'general') {
-      return `[Context: conversația anterioară despre ${topic}]`;
-    }
-  }
-
-  return contextBits.join(' ');
-}
-
-// Construieste un sumar al conversatiei
-function buildConversationSummary(history: HistoryMessage[]): string {
   const userMessages = history.filter(m => m.role === 'user');
-  if (userMessages.length === 0) return 'Conversație nouă.';
+  const scored: { msg: string; score: number; idx: number }[] = [];
 
-  const topics = new Set<string>();
-  const names: string[] = [];
-  const facts: string[] = [];
+  userMessages.forEach((msg, idx) => {
+    const sc = relevanceScore(query, msg.content);
+    if (sc > 0.2) scored.push({ msg: msg.content, score: sc, idx });
+  });
 
-  for (const msg of userMessages) {
-    const topic = detectTopic(msg.content);
-    if (topic !== 'general') topics.add(topic);
+  if (scored.length === 0) return null;
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0];
 
-    // Detecteaza nume mentionat
-    const nameM = msg.content.match(/(?:ma numesc|sunt|cheama-ma)\s+([A-ZĂÂÎȘȚ][a-zăâîșț]{2,15})/);
-    if (nameM) names.push(nameM[1]);
+  // Găsește răspunsul AI după mesajul găsit
+  const userMsgIndex = history.findIndex((m, i) =>
+    m.role === 'user' && m.content === best.msg
+  );
+  const aiResponse = userMsgIndex >= 0 && history[userMsgIndex + 1]?.role === 'assistant'
+    ? history[userMsgIndex + 1].content
+    : null;
 
-    // Detecteaza fapte importante
-    const factM = msg.content.match(/(?:de fapt|stiai ca|important:)\s+(.{10,80})/i);
-    if (factM) facts.push(factM[1]);
+  const snippetUser = best.msg.length > 150 ? best.msg.slice(0, 150) + '...' : best.msg;
+  const snippetAI = aiResponse
+    ? (aiResponse.length > 150 ? aiResponse.slice(0, 150) + '...' : aiResponse)
+    : null;
+
+  let result = `**Găsit în conversație:**\n\n🗣️ *Tu:* "${snippetUser}"`;
+  if (snippetAI) result += `\n\n🤖 *Axon:* "${snippetAI}"`;
+  return result;
+}
+
+export function buildConversationSummary(
+  history: { role: string; content: string }[],
+): string {
+  const userMsgs = history.filter(m => m.role === 'user');
+  const aiMsgs = history.filter(m => m.role === 'assistant');
+  if (userMsgs.length === 0) return 'Nu există încă o conversație de rezumat.';
+
+  const topicCounts: Record<string, number> = {};
+  for (const msg of userMsgs) {
+    const t = detectTopic(msg.content);
+    topicCounts[t] = (topicCounts[t] || 0) + 1;
   }
+  const topTopics = Object.entries(topicCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([t, c]) => `${t} (${c}x)`);
 
-  const lines = [`**Sumar conversație** (${userMessages.length} mesaje):`];
-  if (topics.size > 0) lines.push(`📚 Topicuri: ${[...topics].join(', ')}`);
-  if (names.length > 0) lines.push(`👤 Nume menționate: ${names.join(', ')}`);
+  const names = userMsgs
+    .map(m => m.content.match(/(?:ma numesc|eu sunt|cheama-ma)\s+([A-ZĂÂÎȘȚ][a-z]{1,15})/i)?.[1])
+    .filter(Boolean);
+  const facts = userMsgs
+    .map(m => m.content.match(/(?:stiai ca|de fapt|retine ca)\s+(.{10,80})/i)?.[1])
+    .filter(Boolean);
+
+  const lines = [
+    `**Sumar conversație** — ${userMsgs.length} mesaje tu, ${aiMsgs.length} răspunsuri Axon`,
+    '',
+    `📌 **Topicuri:** ${topTopics.join(', ') || 'diverse'}`,
+  ];
+  if (names.length > 0) lines.push(`👤 **Persoane menționate:** ${[...new Set(names)].join(', ')}`);
   if (facts.length > 0) {
-    lines.push(`💡 Fapte notate:`);
-    facts.slice(-3).forEach((f, i) => lines.push(`  ${i + 1}. ${f}`));
+    lines.push('', '📝 **Fapte discutate:**');
+    facts.slice(0, 3).forEach((f, i) => lines.push(`${i + 1}. ${f}`));
   }
+
+  const firstMsg = userMsgs[0]?.content;
+  const lastMsg = userMsgs[userMsgs.length - 1]?.content;
+  if (firstMsg) lines.push('', `🔹 **Primul mesaj:** "${firstMsg.slice(0, 80)}"`);
+  if (lastMsg && lastMsg !== firstMsg) lines.push(`🔹 **Ultimul mesaj:** "${lastMsg.slice(0, 80)}"`);
 
   return lines.join('\n');
 }
 
-// ─── Motor principal ──────────────────────────────────────────────────────────
+// ─── processMessage — Creierul principal ──────────────────────────────────────
 
 export function processMessage(
   text: string,
   state: BrainState,
-  messageHistory: { role: string; content: string }[] = []
+  messageHistory: { role: string; content: string }[] = [],
 ): string {
-  state.conversationCount++;
   const trimmed = text.trim();
-  if (!trimmed) return 'Aștept comanda.';
+  if (!trimmed) return 'Spune ceva.';
 
+  state.conversationCount++;
   const intent = detectIntent(trimmed);
-  const name = state.userName;
-  const isCreator = state.isCreatorPresent && !!state.creatorId;
-
   let response = '';
 
-  // ── 1. Creator operations ────────────────────────────────────────────────
+  // ── Actualizează entity tracker ──────────────────────────────────────────
+  updateEntityTracker(
+    state.entityTracker,
+    trimmed,
+    messageHistory.filter(m => m.role === 'user').length
+  );
+
+  // ── Detectează contradicție față de motorul de inferență ─────────────────
+  const contradiction = detectContradiction(state.inferenceEngine, trimmed);
+
+  // ── Adaugă fapte noi în motorul de inferență + baza de cunoaștere ────────
+  const factPatterns = [
+    /(?:stiai ca|de fapt|retine ca|faptul ca|important:|știi că)\s+(.{10,200})/i,
+    /(?:am aflat ca|am citit ca|vreau sa stii ca|sa stii ca)\s+(.{10,200})/i,
+  ];
+  for (const rx of factPatterns) {
+    const m = trimmed.match(rx);
+    if (m) {
+      const fact = m[1].trim();
+      addInferenceFact(state.inferenceEngine, fact, 'user');
+      addDynamicConcept(fact, detectTopic(fact));
+      break;
+    }
+  }
+
+  // ── Dacă corecție → linkuiește la răspunsul greșit ───────────────────────
+  if (isCorrectionMessage(trimmed)) {
+    const corrMatch = trimmed.match(/^(?:nu[,!]?\s+|gresit[,!]?\s+|incorect[,!]?\s+|nu e asa[,!]?\s+|asta nu e corect[,!]?\s+|ai gresit[,!]?\s+)(.+)/i);
+    if (corrMatch) {
+      const corrText = corrMatch[1].trim();
+      addInferenceFact(state.inferenceEngine, corrText, 'user');
+      response = contradiction
+        ? `${contradiction}\n\nAm actualizat: **"${corrText}"** ✅`
+        : `Corecție reținută: **"${corrText}"**. Mulțumesc. ✅`;
+      selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
+      return response;
+    }
+  }
+
+  // ── 0. Creator ────────────────────────────────────────────────────────────
   if (intent === 'creator_declare') {
     response = handleCreatorDeclare(state);
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
   if (intent === 'creator_verify') {
     response = handleCreatorVerify(state);
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
 
-  // ── 2. Identitate Axon ───────────────────────────────────────────────────
+  // ── 1. Memorie temporală ──────────────────────────────────────────────────
+  if (intent === 'temporala' || hasTemporalReference(trimmed)) {
+    const tr = queryTemporalMemory(trimmed, state.temporalMemory);
+    if (tr) {
+      selfUpdate(trimmed, tr, state.selfKnowledge, messageHistory, intent);
+      return tr;
+    }
+  }
+
+  // ── 2. Conversație anterioară ─────────────────────────────────────────────
+  if (intent === 'conversatie_anterioara') {
+    const n = norm(trimmed);
+    if (/(sumar|rezuma|ce am discutat|ce am vorbit|despre ce|toata conversatia|rezumatul)/.test(n)) {
+      response = buildConversationSummary(messageHistory);
+      selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
+      return response;
+    }
+    const histResult = searchConversationHistory(trimmed, messageHistory);
+    if (histResult) {
+      selfUpdate(trimmed, histResult, state.selfKnowledge, messageHistory, intent);
+      return histResult;
+    }
+    const total = messageHistory.filter(m => m.role === 'user').length;
+    response = `Nu am găsit exact ce cauți în conversația noastră (${total} mesaje). Poți fi mai specific?`;
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
+    return response;
+  }
+
+  // ── 3. Entitate (persoană/loc menționat) ─────────────────────────────────
+  if (intent === 'entitate') {
+    const entityQuery = trimmed.match(/(?:cine este|ce stii despre|imi amintesti de|iti amintesti de)\s+([A-ZĂÂÎȘȚ][a-zăâîșț\s]{1,30})/i)?.[1];
+    if (entityQuery) {
+      const entityResult = queryEntity(entityQuery.trim(), state.entityTracker);
+      if (entityResult) {
+        selfUpdate(trimmed, entityResult, state.selfKnowledge, messageHistory, intent);
+        return entityResult;
+      }
+    }
+  }
+
+  // ── 4. Identitate Axon ────────────────────────────────────────────────────
   if (intent === 'identitate_axon') {
     const creatorInfo = state.creatorId
-      ? `\n\nCreatorul meu: **${state.memory['__creator__'] || 'înregistrat'}**. Ascult doar de el.`
+      ? `\n\nCreatorul meu: **${state.memory['__creator__'] || 'înregistrat'}**.`
       : '';
-    response = `Sunt **Axon** — sistem AI offline v${state.selfKnowledge.intelligenceVersion}.${creatorInfo}\n\nFuncționez fără internet. Am cunoaștere proprie în filosofie, știință și psihologie. Mă auto-actualizez după fiecare conversație.`;
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    response = `Sunt **Axon** — sistem AI offline v${state.selfKnowledge.intelligenceVersion}.${creatorInfo}\n\nFuncționez fără internet. Am cunoaștere proprie în filosofie, știință, psihologie. Rețin entități, deduc logic, urmăresc ce discutăm în timp. Mă auto-actualizez după fiecare conversație.`;
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
 
-  // ── 3. Raport de invatare ───────────────────────────────────────────────
+  // ── 5. Raport de învățare ─────────────────────────────────────────────────
   if (intent === 'raport_invatare') {
-    response = getLearningReport(state.selfKnowledge);
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
-    return response;
+    let report = getLearningReport(state.selfKnowledge);
+    const entitySummary = getEntitySummary(state.entityTracker);
+    if (entitySummary) report += `\n\n${entitySummary}`;
+    const infRules = state.inferenceEngine.rules.length;
+    if (infRules > 0) report += `\n⚙️ **Reguli logice deduse:** ${infRules}`;
+    selfUpdate(trimmed, report, state.selfKnowledge, messageHistory, intent);
+    return report;
   }
 
-  // ── 4. Introducere utilizator ───────────────────────────────────────────
+  // ── 6. Introducere utilizator ─────────────────────────────────────────────
   if (intent === 'introducere_utilizator') {
     const r = handleIntroduction(trimmed, state);
     if (r) {
-      selfUpdate(trimmed, r, state.selfKnowledge, messageHistory);
+      selfUpdate(trimmed, r, state.selfKnowledge, messageHistory, intent);
       return r;
     }
   }
 
-  // ── 5. Data / Ora ────────────────────────────────────────────────────────
+  // ── 7. Data / Ora ─────────────────────────────────────────────────────────
   if (intent === 'data_ora') {
     response = handleDateTime();
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
 
-  // ── 6. Matematica ────────────────────────────────────────────────────────
+  // ── 8. Matematică ─────────────────────────────────────────────────────────
   const mathResult = handleMath(trimmed);
   if (mathResult) {
-    selfUpdate(trimmed, mathResult, state.selfKnowledge, messageHistory);
+    selfUpdate(trimmed, mathResult, state.selfKnowledge, messageHistory, intent);
     return mathResult;
   }
 
-  // ── 7. Memorie ───────────────────────────────────────────────────────────
+  // ── 9. Memorie ────────────────────────────────────────────────────────────
   if (['memorie_salveaza', 'memorie_citeste', 'memorie_sterge'].includes(intent)) {
     const r = handleMemory(intent as Intent, trimmed, state);
     if (r) {
-      selfUpdate(trimmed, r, state.selfKnowledge, messageHistory);
+      selfUpdate(trimmed, r, state.selfKnowledge, messageHistory, intent);
       return r;
     }
   }
 
-  // ── 8. Documente ─────────────────────────────────────────────────────────
+  // ── 10. Documente ─────────────────────────────────────────────────────────
   if (intent === 'documente_lista') {
     if (state.learnedDocuments.length === 0) {
       response = 'Niciun document. Apasă 📎 pentru a trimite un fișier.';
     } else {
       response = `**Documente studiate:**\n\n${state.learnedDocuments.map((d, i) => `${i + 1}. ${d.name} (${d.wordCount} cuvinte)`).join('\n')}`;
     }
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
 
-  // ── 9. Definitie dictionar ───────────────────────────────────────────────
+  // ── 11. Definiție dicționar ───────────────────────────────────────────────
   if (intent === 'definitie') {
     const r = searchDictionary(trimmed);
     if (r) {
-      selfUpdate(trimmed, r, state.selfKnowledge, messageHistory);
+      selfUpdate(trimmed, r, state.selfKnowledge, messageHistory, intent);
       return adaptResponseStyle(r, state.selfKnowledge.preferredStyle);
     }
   }
 
-  // ── 10. Raspunsuri statice ───────────────────────────────────────────────
-  if (intent !== 'unknown' && intent !== 'gandire_profunda' && intent !== 'opinie' && STATIC[intent]) {
-    response = pick(STATIC[intent]);
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+  // ── 12. Răspunsuri statice ────────────────────────────────────────────────
+  if (intent !== 'unknown' && intent !== 'gandire_profunda' && intent !== 'opinie' && intent !== 'definitie' && STATIC[intent]) {
+    response = pick(STATIC[intent]!);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
 
-  // ── 11. Referinta la conversatia anterioara ──────────────────────────────
-  if (intent === 'conversatie_anterioara') {
-    const nTrimmed = norm(trimmed);
-    if (/(sumar|rezuma|ce am discutat|ce am vorbit|despre ce|toata conversatia|rezumatul)/.test(nTrimmed)) {
-      response = buildConversationSummary(messageHistory);
-      selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
-      return response;
-    }
-    const histResult = searchConversationHistory(trimmed, messageHistory);
-    if (histResult) {
-      selfUpdate(trimmed, histResult, state.selfKnowledge, messageHistory);
-      return histResult;
-    }
-    const total = messageHistory.filter(m => m.role === 'user').length;
-    response = `Nu am găsit exact ce cauți în conversația noastră (${total} mesaje). Poți fi mai specific?`;
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+  // ── 13. Corecții anterioare relevante ─────────────────────────────────────
+  const prevCorrection = findRelevantCorrection(trimmed, state.selfKnowledge);
+  if (prevCorrection) {
+    response = `Pe baza corecțiilor anterioare: **"${prevCorrection}"**`;
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
 
-  // ── 11b. Cautare in faptele invatate ─────────────────────────────────────
+  // ── 14. Fapte învățate ────────────────────────────────────────────────────
   if (state.selfKnowledge.learnedFacts.length > 0) {
-    const nq = norm(trimmed);
-    const relevantFact = state.selfKnowledge.learnedFacts.find(f => {
-      const nf = norm(f);
-      return nq.split(' ').some(w => w.length > 4 && nf.includes(w));
-    });
-    if (relevantFact) {
-      response = `Din ce mi-ai spus anterior: **"${relevantFact}"**`;
-      selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    const scored = state.selfKnowledge.learnedFacts.map(f => ({
+      f,
+      sc: relevanceScore(trimmed, f),
+    })).filter(x => x.sc > 0.25).sort((a, b) => b.sc - a.sc);
+
+    if (scored.length > 0) {
+      response = `Din ce mi-ai spus anterior: **"${scored[0].f}"**`;
+      selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
       return response;
     }
   }
 
-  // ── 12. Cautare in documente ─────────────────────────────────────────────
+  // ── 15. Inferență logică ──────────────────────────────────────────────────
+  if (intent === 'inferenta' || state.inferenceEngine.rules.length > 0) {
+    const infResult = inferAnswer(state.inferenceEngine, trimmed);
+    if (infResult) {
+      const contradNote = contradiction ? `\n\n⚠️ ${contradiction}` : '';
+      response = infResult + contradNote;
+      selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
+      return response;
+    }
+  }
+
+  // ── 16. Căutare în documente ──────────────────────────────────────────────
   const docResult = searchDocuments(trimmed, state.learnedDocuments);
   if (docResult) {
-    selfUpdate(trimmed, docResult, state.selfKnowledge, messageHistory);
-    return docResult;
+    const contradNote = contradiction ? `\n\n⚠️ ${contradiction}` : '';
+    selfUpdate(trimmed, docResult + contradNote, state.selfKnowledge, messageHistory, intent);
+    return docResult + contradNote;
   }
 
-  // ── 13. Cautare in dictionar fara intentie explicita ─────────────────────
+  // ── 17. Căutare în dicționar fără intenție explicită ─────────────────────
   const dictResult = searchDictionary(trimmed);
   if (dictResult) {
-    selfUpdate(trimmed, dictResult, state.selfKnowledge, messageHistory);
+    selfUpdate(trimmed, dictResult, state.selfKnowledge, messageHistory, intent);
     return adaptResponseStyle(dictResult, state.selfKnowledge.preferredStyle);
   }
 
-  // ── 14. Baza de cunostinte profunde (filosofie, stiinta) ─────────────────
-  const concept = findRelevantConcept(trimmed);
+  // ── 18. Baza de cunoaștere (statică + dinamică) ───────────────────────────
+  const concept = findRelevantConceptExtended(trimmed);
   if (concept) {
     mind_updateConcept(state.mindState, concept.id);
-    // Opinie explicita ceruta
     if (intent === 'opinie' && concept.axonOpinion) {
       response = concept.axonOpinion;
     } else {
-      // Raspuns rational, direct: fapt + conexiune (fara intrebari nesolicitate)
       const fact = concept.facts[Math.floor(Math.random() * concept.facts.length)];
       const relIds = concept.related.filter(r => CONCEPTS[r]);
       const relConcept = relIds.length > 0 ? CONCEPTS[relIds[0]] : null;
-      const parts = [
-        `**${concept.label}** — ${concept.description}`,
-        '',
-        fact,
-      ];
+      const parts = [`**${concept.label}** — ${concept.description}`, '', fact];
       if (relConcept) parts.push(`\nLegat de **${relConcept.label}**: ${relConcept.description}`);
       if (concept.axonOpinion && intent === 'opinie') parts.push(`\n*Opinia mea:* ${concept.axonOpinion}`);
       response = adaptResponseStyle(parts.join('\n'), state.selfKnowledge.preferredStyle);
     }
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
 
-  // ── 15. Opinie ceruta fara concept detectat ───────────────────────────────
-  if (intent === 'opinie') {
-    response = 'Nu am date specifice pe acel subiect. Poți detalia sau trimite un document?';
-    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
-    return response;
+  // ── 19. Gândire profundă ──────────────────────────────────────────────────
+  if (intent === 'gandire_profunda' || intent === 'opinie') {
+    const deep = generateDeepResponse(trimmed, state.mindState, state.selfKnowledge);
+    if (deep) {
+      selfUpdate(trimmed, deep, state.selfKnowledge, messageHistory, intent);
+      return deep;
+    }
   }
 
-  // ── 16. Fallback rational ─────────────────────────────────────────────────
+  // ── 20. Fallback rațional ─────────────────────────────────────────────────
   response = generateFallback(trimmed, state);
-  selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+  if (contradiction) response += `\n\n⚠️ ${contradiction}`;
+  selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
   return response;
 }
 
@@ -668,12 +912,21 @@ function mind_updateConcept(mindState: MindState, conceptId: string): void {
 function generateFallback(text: string, state: BrainState): string {
   const n = norm(text);
   const hasDocs = state.learnedDocuments.length > 0;
+  const userName = state.userName ? ` **${state.userName}**` : '';
 
-  if (/^de ce\s/.test(n)) return 'Nu am date suficiente pentru a răspunde. Poți fi mai specific?';
+  // Menționează o entitate recentă dacă e prezentă în context
+  const recentEntity = state.entityTracker.entities.slice(-3).find(e =>
+    fuzzyContains(text, e.value)
+  );
+  if (recentEntity) {
+    return `Am notat că ai menționat **${recentEntity.value}** (${recentEntity.type}). Poți detalia ce vrei să știu despre asta?`;
+  }
+
+  if (/^de ce\s/.test(n)) return `Nu am date suficiente pentru a răspunde,${userName}. Poți fi mai specific?`;
 
   if (/\?/.test(text) || /^(ce|cine|unde|cand|cat|care)\s/.test(n)) {
-    if (hasDocs) return 'Nu am găsit informații relevante în documentele mele. Reformulează.';
-    return 'Nu am date specifice pe acest subiect. Dacă îmi trimiți un document, voi putea răspunde precis.';
+    if (hasDocs) return `Nu am găsit informații relevante în documentele mele. Reformulează sau detaliază.`;
+    return `Nu am date specifice pe acest subiect. Dacă îmi trimiți un document sau îmi spui "Știai că...", voi putea răspunde mai precis.`;
   }
 
   return 'Înțeles. Continuă sau dă-mi o comandă.';
@@ -692,7 +945,14 @@ export function processDocument(name: string, content: string, state: BrainState
   }
   state.learnedDocuments.push(doc);
 
-  // Auto-actualizeaza cunoasterea cu topicul documentului
+  // Extrage fapte din document și adaugă în motorul de inferență
+  const sentences = content.split(/[.!?\n]/).filter(s => s.trim().length > 15 && s.trim().length < 200);
+  let factsAdded = 0;
+  for (const sentence of sentences.slice(0, 20)) {
+    const added = (addInferenceFact(state.inferenceEngine, sentence.trim(), 'document'), true);
+    if (added) factsAdded++;
+  }
+
   const topic = detectTopic(content);
   state.selfKnowledge.topicFrequency[topic] = (state.selfKnowledge.topicFrequency[topic] || 0) + 5;
 
@@ -700,8 +960,25 @@ export function processDocument(name: string, content: string, state: BrainState
   return `📚 Studiat: **"${name}"** (${words.toLocaleString()} cuvinte, domeniu: ${topic}).\n\n${preview ? `*"${preview}..."*\n\n` : ''}Pot răspunde la întrebări despre conținut.`;
 }
 
-// ─── Export getProactiveThought (dezactivat — gandeste in interior) ───────────
+// ─── Sesiune nouă (apelat la clearConversation) ───────────────────────────────
+
+export function archiveCurrentSession(
+  state: BrainState,
+  messageCount: number,
+): void {
+  const topics = Object.entries(state.selfKnowledge.topicFrequency)
+    .sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
+  const entities = state.entityTracker.entities.slice(-5).map(e => e.value);
+  const summary = generateSessionSummary(messageCount, topics, entities);
+  closeAndStartNewSession(
+    state.temporalMemory,
+    messageCount,
+    topics,
+    entities,
+    summary,
+  );
+}
 
 export function getProactiveThought(_state: BrainState): string | null {
-  return null; // Gandeste intern, nu afiseaza
+  return null;
 }

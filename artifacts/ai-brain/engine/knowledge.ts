@@ -318,10 +318,88 @@ export function generateProactiveThought(concept: Concept): string {
   const relatedConcept = randomRelated ? CONCEPTS[randomRelated] : null;
   
   const templates = [
-    `Mă gândesc la legătura dintre **${concept.label}** și **${relatedConcept?.label || 'lumea din jur'}**. ${relatedConcept ? relatedConcept.facts[0] : ''} Nu te-ai gândit la asta?`,
+    `Mă gândesc la legătura dintre **${concept.label}** și **${relatedConcept?.label || 'lumea din jur'}**. ${relatedConcept ? relatedConcept.facts[0] : ''}`,
     `Apropo de **${concept.label}** — știai că ${concept.facts[Math.floor(Math.random() * concept.facts.length)]}`,
     `**${concept.label}** mă fascinează. ${concept.axonOpinion || concept.facts[0]}`,
   ];
   
   return templates[Math.floor(Math.random() * templates.length)];
+}
+
+// ─── Concepte dinamice (adăugate din conversație) ────────────────────────────
+
+export const DYNAMIC_CONCEPTS: Record<string, Concept> = {};
+
+function normKnow(text: string): string {
+  return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+// Adaugă un concept nou din fapte învățate de la utilizator
+export function addDynamicConcept(fact: string, domain = 'general'): Concept | null {
+  // "X este Y" sau "X = Y"
+  const m = fact.match(/^(.{3,30}?)\s+(?:este|e|sunt|=)\s+(.{5,200})$/i);
+  if (!m) return null;
+
+  const label = m[1].trim();
+  const description = m[2].trim();
+  const id = normKnow(label).replace(/\s+/g, '_').slice(0, 30);
+
+  if (DYNAMIC_CONCEPTS[id] || CONCEPTS[id]) return null; // Deja există
+
+  // Caută concepte statice înrudite prin cuvinte cheie
+  const labelWords = normKnow(label).split(/\s+/).filter(w => w.length > 3);
+  const descWords = normKnow(description).split(/\s+/).filter(w => w.length > 3);
+  const related: string[] = [];
+
+  for (const [cid, concept] of Object.entries(CONCEPTS)) {
+    const cLabel = normKnow(concept.label);
+    const cDesc = normKnow(concept.description);
+    const match = [...labelWords, ...descWords].some(w =>
+      cLabel.includes(w) || cDesc.includes(w)
+    );
+    if (match) related.push(cid);
+  }
+
+  const concept: Concept = {
+    id,
+    label: label.charAt(0).toUpperCase() + label.slice(1),
+    domain,
+    description,
+    related: related.slice(0, 4),
+    facts: [description],
+    axonOpinion: undefined,
+  };
+
+  DYNAMIC_CONCEPTS[id] = concept;
+  return concept;
+}
+
+// Căutare extinsă — include și conceptele dinamice
+export function findRelevantConceptExtended(text: string): Concept | null {
+  // Încearcă mai întâi în CONCEPTS statice
+  const static_ = findRelevantConcept(text);
+  
+  // Caută și în DYNAMIC_CONCEPTS
+  const n = normKnow(text);
+  let bestDynamic: Concept | null = null;
+  let bestScore = 0;
+
+  for (const [, concept] of Object.entries(DYNAMIC_CONCEPTS)) {
+    const idN = normKnow(concept.id.replace(/_/g, ' '));
+    const labelN = normKnow(concept.label);
+    let score = 0;
+    if (n.includes(idN)) score += 5;
+    if (n.includes(labelN)) score += 4;
+    const words = n.split(/\s+/);
+    for (const w of words) {
+      if (w.length > 3 && (labelN.includes(w) || idN.includes(w))) score += 2;
+    }
+    if (score > bestScore) { bestScore = score; bestDynamic = concept; }
+  }
+
+  if (!static_ && !bestDynamic) return null;
+  if (!static_) return bestDynamic;
+  if (!bestDynamic) return static_;
+  // Returnează cel mai relevant
+  return bestScore > 3 ? bestDynamic : static_;
 }

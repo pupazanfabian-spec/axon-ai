@@ -1,9 +1,15 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Message, BrainState, processMessage, processDocument, createInitialBrainState } from '@/engine/brain';
+import {
+  Message, BrainState, processMessage, processDocument,
+  createInitialBrainState, archiveCurrentSession,
+} from '@/engine/brain';
 import { createMindState } from '@/engine/mind';
 import { createSelfKnowledge } from '@/engine/learning';
+import { createEntityTracker } from '@/engine/entities';
+import { createInferenceEngine } from '@/engine/inference';
+import { createTemporalMemory } from '@/engine/temporal';
 
 interface BrainContextType {
   messages: Message[];
@@ -23,7 +29,7 @@ const STATE_KEY = '@axon_v3_state';
 const WELCOME: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: 'Salut! Sunt **Axon** — un AI cu minte proprie, funcționând complet offline. 🧠\n\n**Ce mă face diferit:**\n🤔 Am opinii formate pe baza cunoașterii mele\n🔗 Fac conexiuni între concepte — filosofie, știință, psihologie\n📄 Studiez fișierele pe care mi le trimiți\n💾 Nu uit nimic între sesiuni\n\nCum te cheamă? Sau întreabă-mă ceva — orice.',
+  content: 'Salut! Sunt **Axon** — un AI cu minte proprie, funcționând complet offline. 🧠\n\n**Ce mă face diferit:**\n🤔 Am opinii formate pe baza cunoașterii mele\n🔗 Deduc logic din ce îmi spui\n👤 Rețin persoanele și entitățile menționate\n🕐 Știu ce am discutat azi, ieri, săptămâna trecută\n📄 Studiez fișierele pe care mi le trimiți\n💾 Nu uit nimic între sesiuni\n\nCum te cheamă? Sau întreabă-mă ceva — orice.',
   timestamp: new Date(),
 };
 
@@ -34,7 +40,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
   const [brainState, setBrainState] = useState<BrainState>(brainRef.current);
   const loaded = useRef(false);
 
-  // Incarca starea salvata
+  // Încarcă starea salvată cu migrare pentru câmpuri noi
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
@@ -48,17 +54,39 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
 
         if (savedState) {
           const parsed = JSON.parse(savedState) as BrainState;
+
+          // Migrare documente
           parsed.learnedDocuments = (parsed.learnedDocuments || []).map(d => ({
             ...d,
             addedAt: new Date(d.addedAt),
           }));
-          // Asigura ca mindState exista intotdeauna
+
+          // Migrare câmpuri v3/v4
           if (!parsed.mindState) parsed.mindState = createMindState();
-          if (!parsed.selfKnowledge) {
-            parsed.selfKnowledge = createSelfKnowledge();
-          }
+          if (!parsed.selfKnowledge) parsed.selfKnowledge = createSelfKnowledge();
           if (parsed.creatorId === undefined) parsed.creatorId = null;
           if (parsed.isCreatorPresent === undefined) parsed.isCreatorPresent = false;
+
+          // Migrare câmpuri v5 (noi)
+          if (!parsed.entityTracker) parsed.entityTracker = createEntityTracker();
+          if (!parsed.inferenceEngine) parsed.inferenceEngine = createInferenceEngine();
+          if (!parsed.temporalMemory) parsed.temporalMemory = createTemporalMemory();
+
+          // Migrare selfKnowledge v5
+          if (!parsed.selfKnowledge.responseQualityMap) {
+            parsed.selfKnowledge.responseQualityMap = {};
+          }
+          if (parsed.selfKnowledge.totalMessages === undefined) {
+            parsed.selfKnowledge.totalMessages = 0;
+          }
+          // Migrare corrections (format vechi → nou)
+          parsed.selfKnowledge.corrections = (parsed.selfKnowledge.corrections || []).map((c: any) => {
+            if (typeof c === 'object' && 'wrong' in c) {
+              return { wrongResponse: c.wrong, correction: c.correct, intent: 'unknown', at: Date.now() };
+            }
+            return c;
+          });
+
           brainRef.current = parsed;
           setBrainState({ ...parsed });
         }
@@ -96,11 +124,9 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     setMessages(prev => [...prev, userMsg]);
     setIsThinking(true);
 
-    // Timp de gandire natural: 300–900ms
     const thinkMs = 300 + Math.random() * 600;
     await new Promise(r => setTimeout(r, thinkMs));
 
-    // Trimite istoricul conversatiei pentru auto-actualizare
     const history = messages.map(m => ({ role: m.role, content: m.content }));
     const response = processMessage(text, brainRef.current, history);
     setBrainState({ ...brainRef.current });
@@ -150,32 +176,36 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearConversation = useCallback(() => {
+    // Arhivează sesiunea curentă în memoria temporală
+    const msgCount = messages.filter(m => m.role === 'user').length;
+    archiveCurrentSession(brainRef.current, msgCount);
+
     const reset: Message = {
       id: Date.now().toString(),
       role: 'assistant',
-      content: 'Conversația resetată! Sunt Axon, gata de la zero.\n\nDocumentele, memoria și cunoașterea mea sunt păstrate.',
+      content: 'Conversația resetată! Sunt Axon, gata de la zero.\n\nDocumentele, memoria, entitățile și cunoașterea mea sunt păstrate.',
       timestamp: new Date(),
     };
     setMessages([reset]);
-    const docs = brainRef.current.learnedDocuments;
-    const mem = brainRef.current.memory;
-    const uname = brainRef.current.userName;
-    const sk = brainRef.current.selfKnowledge;
-    const creatorId = brainRef.current.creatorId;
-    const isCreatorPresent = brainRef.current.isCreatorPresent;
+
+    // Păstrează tot ce e important între sesiuni
+    const prev = brainRef.current;
     brainRef.current = {
       ...createInitialBrainState(),
-      learnedDocuments: docs,
-      memory: mem,
-      userName: uname,
-      selfKnowledge: sk,
-      creatorId,
-      isCreatorPresent,
+      learnedDocuments: prev.learnedDocuments,
+      memory: prev.memory,
+      userName: prev.userName,
+      selfKnowledge: prev.selfKnowledge,
+      creatorId: prev.creatorId,
+      isCreatorPresent: prev.isCreatorPresent,
+      entityTracker: prev.entityTracker,
+      inferenceEngine: prev.inferenceEngine,
+      temporalMemory: prev.temporalMemory,
     };
     setBrainState({ ...brainRef.current });
     AsyncStorage.setItem(MESSAGES_KEY, JSON.stringify([reset]));
     AsyncStorage.setItem(STATE_KEY, JSON.stringify(brainRef.current));
-  }, []);
+  }, [messages]);
 
   return (
     <BrainContext.Provider value={{
