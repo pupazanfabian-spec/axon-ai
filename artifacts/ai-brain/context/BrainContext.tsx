@@ -10,6 +10,7 @@ import { createSelfKnowledge } from '@/engine/learning';
 import { createEntityTracker } from '@/engine/entities';
 import { createInferenceEngine } from '@/engine/inference';
 import { createTemporalMemory } from '@/engine/temporal';
+import { createConstitutionState } from '@/engine/constitution';
 
 interface BrainContextType {
   messages: Message[];
@@ -71,6 +72,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
           if (!parsed.entityTracker) parsed.entityTracker = createEntityTracker();
           if (!parsed.inferenceEngine) parsed.inferenceEngine = createInferenceEngine();
           if (!parsed.temporalMemory) parsed.temporalMemory = createTemporalMemory();
+          if (!parsed.constitutionState) parsed.constitutionState = createConstitutionState();
 
           // Migrare selfKnowledge v5
           if (!parsed.selfKnowledge.responseQualityMap) {
@@ -201,6 +203,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
       entityTracker: prev.entityTracker,
       inferenceEngine: prev.inferenceEngine,
       temporalMemory: prev.temporalMemory,
+      constitutionState: prev.constitutionState, // Constituția NU se resetează
     };
     setBrainState({ ...brainRef.current });
     AsyncStorage.setItem(MESSAGES_KEY, JSON.stringify([reset]));

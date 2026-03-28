@@ -1,5 +1,5 @@
 
-// Axon AI Brain v5 — Semantic, inferential, entity-aware, temporally conscious
+// Axon AI Brain v5 — Semantic, inferential, entity-aware, temporally conscious, constitutionally protected
 
 import { findRelevantConcept, findRelevantConceptExtended, CONCEPTS, addDynamicConcept } from './knowledge';
 import { MindState, createMindState, generateDeepResponse } from './mind';
@@ -21,6 +21,10 @@ import {
   TemporalMemory, createTemporalMemory, queryTemporalMemory,
   hasTemporalReference, closeAndStartNewSession, generateSessionSummary,
 } from './temporal';
+import {
+  ConstitutionState, createConstitutionState, checkMessage,
+  checkCreatorAccess, getSecurityReport, verifyIntegrity, CONSTITUTION_TEXT,
+} from './constitution';
 
 // ─── Tipuri ───────────────────────────────────────────────────────────────────
 
@@ -53,6 +57,7 @@ export interface BrainState {
   entityTracker: EntityTracker;
   inferenceEngine: InferenceEngine;
   temporalMemory: TemporalMemory;
+  constitutionState: ConstitutionState;
 }
 
 export function createInitialBrainState(): BrainState {
@@ -70,6 +75,7 @@ export function createInitialBrainState(): BrainState {
     entityTracker: createEntityTracker(),
     inferenceEngine: createInferenceEngine(),
     temporalMemory: createTemporalMemory(),
+    constitutionState: createConstitutionState(),
   };
 }
 
@@ -227,6 +233,7 @@ type Intent =
   | 'creator_declare' | 'creator_verify' | 'raport_invatare'
   | 'definitie' | 'opinie' | 'gandire_profunda'
   | 'conversatie_anterioara' | 'entitate' | 'inferenta' | 'temporala'
+  | 'securitate' | 'constitutie'
   | 'unknown';
 
 interface IntentPattern {
@@ -237,6 +244,16 @@ interface IntentPattern {
 }
 
 const INTENT_PATTERNS: IntentPattern[] = [
+  {
+    intent: 'securitate',
+    patterns: [/(raport securitate|securitatea mea|ai fost atacat|tentative de hack|evenimente securitate|cine a incercat|integritate sistem)/],
+    weight: 10,
+  },
+  {
+    intent: 'constitutie',
+    patterns: [/(constitutia ta|regulile tale|ce reguli ai|principiile tale|codul tau de legi|care sunt legile tale|arata-mi constitutia)/],
+    weight: 10,
+  },
   {
     intent: 'creator_declare',
     patterns: [/(eu sunt creatorul|eu te-am creat|eu sunt cel care te-a creat|eu sunt stapanul|sunt creatorul tau|sunt programatorul tau|sunt cel care te-a facut)/],
@@ -648,6 +665,21 @@ export function processMessage(
   const intent = detectIntent(trimmed);
   let response = '';
 
+  // ── PRIMUL STRAT: Verificare constituție ─────────────────────────────────
+  const constitutionCheck = checkMessage(
+    trimmed,
+    state.creatorId,
+    state.isCreatorPresent,
+    state.constitutionState,
+  );
+  if (constitutionCheck.blocked) {
+    return constitutionCheck.response!;
+  }
+
+  // ── Verificare acces creator pentru comenzi admin ────────────────────────
+  const creatorAccessDenied = checkCreatorAccess(intent, state.creatorId, state.isCreatorPresent);
+  if (creatorAccessDenied) return creatorAccessDenied;
+
   // ── Actualizează entity tracker ──────────────────────────────────────────
   updateEntityTracker(
     state.entityTracker,
@@ -687,9 +719,25 @@ export function processMessage(
     }
   }
 
-  // ── 0. Creator ────────────────────────────────────────────────────────────
+  // ── 0. Securitate & Constituție ──────────────────────────────────────────
+  if (intent === 'securitate') {
+    response = getSecurityReport(state.constitutionState);
+    if (!verifyIntegrity(state.constitutionState)) {
+      response += '\n\n⚠️ **ALERTĂ: Integritatea constituției a fost compromisă!**';
+    }
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
+    return response;
+  }
+  if (intent === 'constitutie') {
+    response = `**Constituția lui Axon — Activă și Imuabilă**\n\n${CONSTITUTION_TEXT}\n\n🔑 Hash integritate: \`${state.constitutionState.integrityHash}\``;
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
+    return response;
+  }
+
+  // ── 1. Creator ────────────────────────────────────────────────────────────
   if (intent === 'creator_declare') {
     response = handleCreatorDeclare(state);
+    state.constitutionState.creatorVerified = true;
     selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
