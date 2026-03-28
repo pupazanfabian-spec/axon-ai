@@ -1,4 +1,3 @@
-
 {
   "expo": {
     "name": "Axon AI",
@@ -58,8 +57,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "axon-ai-offline"
+        "projectId": "594c734d-da36-4933-8712-146d347f5e00"
       }
-    }
+    },
+    "owner": "pfabianq"
   }
 }
