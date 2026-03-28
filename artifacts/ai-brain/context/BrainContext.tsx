@@ -11,6 +11,7 @@ import { createEntityTracker } from '@/engine/entities';
 import { createInferenceEngine } from '@/engine/inference';
 import { createTemporalMemory } from '@/engine/temporal';
 import { createConstitutionState } from '@/engine/constitution';
+import { useLLM } from '@/context/LLMContext';
 
 interface BrainContextType {
   messages: Message[];
@@ -40,6 +41,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
   const brainRef = useRef<BrainState>(createInitialBrainState());
   const [brainState, setBrainState] = useState<BrainState>(brainRef.current);
   const loaded = useRef(false);
+  const { generate: llmGenerate, status: llmStatus } = useLLM();
 
   // Încarcă starea salvată cu migrare pentru câmpuri noi
   useEffect(() => {
@@ -130,7 +132,26 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     await new Promise(r => setTimeout(r, thinkMs));
 
     const history = messages.map(m => ({ role: m.role, content: m.content }));
-    const response = processMessage(text, brainRef.current, history);
+    let response = processMessage(text, brainRef.current, history);
+
+    // Dacă creierul clasic nu știe răspunsul și LLM e disponibil, întreabă Phi-3
+    const isClassicFallback = response.startsWith('Nu am date') ||
+      response.startsWith('Nu am găsit') ||
+      response.startsWith('Subiect interesant') ||
+      response.startsWith('Înțeleg ideea');
+    if (isClassicFallback && llmStatus === 'ready') {
+      const state = brainRef.current;
+      const llmResp = await llmGenerate(text, {
+        userName: state.userName,
+        creatorName: state.creatorId,
+        learnedFacts: state.selfKnowledge.learnedFacts.slice(-20),
+        history: history.slice(-12) as { role: 'user' | 'assistant'; content: string }[],
+      });
+      if (llmResp) {
+        response = `🧠 ${llmResp}`;
+      }
+    }
+
     setBrainState({ ...brainRef.current });
 
     const aiMsg: Message = {

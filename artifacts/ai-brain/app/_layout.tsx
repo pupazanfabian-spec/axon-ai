@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BrainProvider } from "@/context/BrainContext";
+import { LLMProvider } from "@/context/LLMContext";
 import { PinProvider } from "@/context/PinContext";
 
 SplashScreen.preventAutoHideAsync();
@@ -52,11 +53,13 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView>
             <KeyboardProvider>
-              <PinProvider>
-                <BrainProvider>
-                  <RootLayoutNav />
-                </BrainProvider>
-              </PinProvider>
+              <LLMProvider>
+                <PinProvider>
+                  <BrainProvider>
+                    <RootLayoutNav />
+                  </BrainProvider>
+                </PinProvider>
+              </LLMProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

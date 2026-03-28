@@ -20,7 +20,9 @@ import QuickActions from '@/components/QuickActions';
 import MemoryModal from '@/components/MemoryModal';
 import FileUploadModal from '@/components/FileUploadModal';
 import PinScreen from '@/components/PinScreen';
+import ModelSetupScreen from '@/components/ModelSetupScreen';
 import { useBrain } from '@/context/BrainContext';
+import { useLLM } from '@/context/LLMContext';
 import { usePin } from '@/context/PinContext';
 import { Message } from '@/engine/brain';
 import Colors from '@/constants/colors';
@@ -36,6 +38,7 @@ export default function ChatScreen() {
   } = useBrain();
 
   const { isLocked, hasPin, pinLoaded, unlock, setPin, removePin, lock } = usePin();
+  const { status: llmStatus, skipped: llmSkipped } = useLLM();
 
   const [inputText, setInputText] = useState('');
   const [showMemory, setShowMemory] = useState(false);
@@ -159,6 +162,11 @@ export default function ChatScreen() {
   // ── Asteapta incarcarea PIN ─────────────────────────────────────────────────
   if (!pinLoaded) return null;
 
+  // ── Configurare model LLM (doar în native build, când modelul nu e descărcat) ──
+  if (llmStatus === 'not_downloaded' && !llmSkipped) {
+    return <ModelSetupScreen />;
+  }
+
   // ── Ecran deblocare PIN ─────────────────────────────────────────────────────
   if (isLocked) {
     return (
@@ -215,9 +223,11 @@ export default function ChatScreen() {
           <View>
             <Text style={styles.headerTitle}>Axon</Text>
             <Text style={styles.headerSub}>
-              {docCount > 0
-                ? `${docCount} doc. • Offline`
-                : `v${brainState.selfKnowledge?.intelligenceVersion ?? 1} • Offline`}
+              {llmStatus === 'ready'
+                ? `🧠 Neural • Offline`
+                : docCount > 0
+                  ? `${docCount} doc. • Offline`
+                  : `v${brainState.selfKnowledge?.intelligenceVersion ?? 1} • Offline`}
             </Text>
           </View>
         </View>
