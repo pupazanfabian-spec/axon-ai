@@ -12,10 +12,12 @@ import { createInferenceEngine } from '@/engine/inference';
 import { createTemporalMemory } from '@/engine/temporal';
 import { createConstitutionState } from '@/engine/constitution';
 import { useLLM } from '@/context/LLMContext';
+import { searchOnline, isOnlineIntent } from '@/engine/webSearch';
 
 interface BrainContextType {
   messages: Message[];
   isThinking: boolean;
+  webSearching: boolean;
   brainState: BrainState;
   sendMessage: (text: string) => Promise<void>;
   clearConversation: () => void;
@@ -31,13 +33,14 @@ const STATE_KEY = '@axon_v3_state';
 const WELCOME: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: 'Salut! Sunt **Axon** — un AI cu minte proprie, funcționând complet offline. 🧠\n\n**Ce mă face diferit:**\n🤔 Am opinii formate pe baza cunoașterii mele\n🔗 Deduc logic din ce îmi spui\n👤 Rețin persoanele și entitățile menționate\n🕐 Știu ce am discutat azi, ieri, săptămâna trecută\n📄 Studiez fișierele pe care mi le trimiți\n💾 Nu uit nimic între sesiuni\n\nCum te cheamă? Sau întreabă-mă ceva — orice.',
+  content: 'Salut! Sunt **Axon** — AI cu minte proprie, offline și online. 🧠\n\n**Ce pot face:**\n🤔 Răspund din 270+ subiecte din memorie\n📡 Caut pe internet când nu știu (Wikipedia, DuckDuckGo)\n🔗 Deduc logic din ce îmi spui\n👤 Rețin persoanele și entitățile menționate\n🕐 Știu ce am discutat azi, ieri, săptămâna trecută\n📄 Studiez fișierele pe care mi le trimiți\n💾 Nu uit nimic între sesiuni\n\n**Caută online:** spune "caută online [subiect]" sau întreabă orice — dacă nu știu din memorie, verific internetul automat.\n\nCum te cheamă? Sau întreabă-mă ceva — orice.',
   timestamp: new Date(),
 };
 
 export function BrainProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [isThinking, setIsThinking] = useState(false);
+  const [webSearching, setWebSearching] = useState(false);
   const brainRef = useRef<BrainState>(createInitialBrainState());
   const [brainState, setBrainState] = useState<BrainState>(brainRef.current);
   const loaded = useRef(false);
@@ -134,11 +137,16 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     const history = messages.map(m => ({ role: m.role, content: m.content }));
     let response = processMessage(text, brainRef.current, history);
 
-    // Dacă creierul clasic nu știe răspunsul și LLM e disponibil, întreabă Phi-3
+    // Detectează dacă utilizatorul vrea explicit căutare online
+    const wantsOnline = isOnlineIntent(text);
+
+    // Verifică dacă creierul clasic nu a dat un răspuns bun
     const isClassicFallback = response.startsWith('Nu am date') ||
       response.startsWith('Nu am găsit') ||
       response.startsWith('Subiect interesant') ||
       response.startsWith('Înțeleg ideea');
+
+    // Fallback 1: LLM local (Phi-3 Mini) dacă e disponibil
     if (isClassicFallback && llmStatus === 'ready') {
       const state = brainRef.current;
       const llmResp = await llmGenerate(text, {
@@ -149,6 +157,28 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
       });
       if (llmResp) {
         response = `🧠 ${llmResp}`;
+      }
+    }
+
+    // Fallback 2 / Intenție explicită: Căutare online (Wikipedia + DuckDuckGo)
+    const shouldSearchOnline = wantsOnline || isClassicFallback;
+    if (shouldSearchOnline) {
+      setWebSearching(true);
+      try {
+        const onlineResult = await searchOnline(text);
+        if (onlineResult.found) {
+          if (wantsOnline) {
+            // Utilizatorul a cerut explicit online — arată doar rezultatul web
+            response = `📡 **${onlineResult.source}**\n\n${onlineResult.text}`;
+          } else {
+            // Fallback automat — completează răspunsul cu informații online
+            response = `📡 **${onlineResult.source}**\n\n${onlineResult.text}`;
+          }
+        }
+      } catch {
+        // Fără internet sau eroare — păstrăm răspunsul local
+      } finally {
+        setWebSearching(false);
       }
     }
 
@@ -233,7 +263,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <BrainContext.Provider value={{
-      messages, isThinking, brainState,
+      messages, isThinking, webSearching, brainState,
       sendMessage, clearConversation, addDocument, removeDocument,
     }}>
       {children}

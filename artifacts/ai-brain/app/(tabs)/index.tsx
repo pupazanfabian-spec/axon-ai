@@ -34,7 +34,7 @@ type PinMode = 'unlock' | 'set' | 'confirm' | 'verify_old' | null;
 
 export default function ChatScreen() {
   const {
-    messages, isThinking, brainState,
+    messages, isThinking, webSearching, brainState,
     sendMessage, clearConversation, addDocument, removeDocument,
   } = useBrain();
 
@@ -61,13 +61,13 @@ export default function ChatScreen() {
 
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
-    if (!text || isThinking) return;
+    if (!text || isThinking || webSearching) return;
     setInputText('');
     setShowQuick(false);
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await sendMessage(text);
     scrollToBottom();
-  }, [inputText, isThinking, sendMessage, scrollToBottom]);
+  }, [inputText, isThinking, webSearching, sendMessage, scrollToBottom]);
 
   const handleQuickAction = useCallback((text: string) => {
     setShowQuick(false);
@@ -273,10 +273,16 @@ export default function ChatScreen() {
           keyboardShouldPersistTaps="handled"
           scrollEnabled={!!messages.length}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-          ListFooterComponent={isThinking ? <ThinkingIndicator /> : null}
+          ListFooterComponent={
+            webSearching
+              ? <ThinkingIndicator webSearch={true} />
+              : isThinking
+                ? <ThinkingIndicator />
+                : null
+          }
         />
 
-        {showQuick && !isThinking && <QuickActions onPress={handleQuickAction} />}
+        {showQuick && !isThinking && !webSearching && <QuickActions onPress={handleQuickAction} />}
 
         <View style={[styles.inputContainer, { paddingBottom: bottomInset + 8 }]}>
           <TouchableOpacity style={styles.attachBtn} onPress={() => setShowFiles(true)}>
@@ -297,15 +303,15 @@ export default function ChatScreen() {
           />
 
           <TouchableOpacity
-            style={[styles.sendBtn, (!inputText.trim() || isThinking) && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, (!inputText.trim() || isThinking || webSearching) && styles.sendBtnDisabled]}
             onPress={handleSend}
-            disabled={!inputText.trim() || isThinking}
+            disabled={!inputText.trim() || isThinking || webSearching}
             activeOpacity={0.8}
           >
             <Feather
               name="send"
               size={18}
-              color={inputText.trim() && !isThinking ? '#fff' : colors.textMuted}
+              color={inputText.trim() && !isThinking && !webSearching ? '#fff' : colors.textMuted}
             />
           </TouchableOpacity>
         </View>

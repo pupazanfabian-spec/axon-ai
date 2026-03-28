@@ -1,16 +1,32 @@
 
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import Colors from '@/constants/colors';
 
 const { colors } = Colors;
 
-export default function ThinkingIndicator() {
+interface ThinkingIndicatorProps {
+  webSearch?: boolean;
+}
+
+export default function ThinkingIndicator({ webSearch = false }: ThinkingIndicatorProps) {
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    if (webSearch) {
+      const anim = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 1.15, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      );
+      anim.start();
+      return () => anim.stop();
+    }
+
     const animate = (dot: Animated.Value, delay: number) => {
       return Animated.loop(
         Animated.sequence([
@@ -25,45 +41,38 @@ export default function ThinkingIndicator() {
     const a1 = animate(dot1, 0);
     const a2 = animate(dot2, 200);
     const a3 = animate(dot3, 400);
-
-    a1.start();
-    a2.start();
-    a3.start();
-
-    return () => {
-      a1.stop();
-      a2.stop();
-      a3.stop();
-    };
-  }, []);
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, [webSearch]);
 
   const dots = [dot1, dot2, dot3];
+  const dotColor = webSearch ? colors.accent : colors.primary;
+  const avatarBg = webSearch ? colors.accent : colors.primary;
 
   return (
     <View style={styles.container}>
-      <View style={styles.avatar}>
-        <Animated.Text style={styles.avatarText}>A</Animated.Text>
-      </View>
-      <View style={styles.bubble}>
-        {dots.map((dot, i) => (
-          <Animated.View
-            key={i}
-            style={[
-              styles.dot,
-              {
-                opacity: dot,
-                transform: [
-                  {
-                    translateY: dot.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -4],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-        ))}
+      <Animated.View style={[styles.avatar, { backgroundColor: avatarBg, transform: webSearch ? [{ scale: pulse }] : [] }]}>
+        <Text style={styles.avatarText}>{webSearch ? '📡' : 'A'}</Text>
+      </Animated.View>
+
+      <View style={[styles.bubble, webSearch && styles.bubbleWeb]}>
+        {webSearch ? (
+          <Text style={[styles.webLabel, { color: colors.accent }]}>Caut pe internet...</Text>
+        ) : (
+          dots.map((dot, i) => (
+            <Animated.View
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: dotColor,
+                  opacity: dot,
+                  transform: [{ translateY: dot.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }],
+                },
+              ]}
+            />
+          ))
+        )}
       </View>
     </View>
   );
@@ -80,7 +89,6 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -103,10 +111,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
   },
+  bubbleWeb: {
+    borderColor: colors.accent + '44',
+    backgroundColor: colors.accent + '11',
+  },
   dot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: colors.primary,
+  },
+  webLabel: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    letterSpacing: 0.3,
   },
 });
