@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "EnJjeFHpU0C-OLbbr8Uow"
+uri = "file://artifacts/ai-brain/colab/GHID_INSTALARE.md"
+type = "text"
+title = "Ghid Instalare Axon pe Telefon"
