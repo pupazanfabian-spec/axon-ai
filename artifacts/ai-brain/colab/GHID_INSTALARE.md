@@ -1,128 +1,155 @@
-# Axon — Ghid Complet de Instalare pe Telefon
-
-## Pasul 1: Creează contul EAS (o singură dată)
-
-1. Du-te pe **https://expo.dev** și creează un cont gratuit
-2. Pe calculator, deschide terminalul și rulează:
-```
-npm install -g eas-cli
-eas login
-```
-3. Introdu email și parola contului tău Expo
+# Axon — Ghid de Instalare Complet (Pas cu Pas)
 
 ---
 
-## Pasul 2: Configurează proiectul
+## ═══ FAZA 1: Creezi contul gratuit Expo ═══
 
-În folderul proiectului Axon, rulează:
-```
-eas init
-```
-Când îți cere, alege „Create a new project" și dă-i numele **Axon AI**.
+**Ce faci: creezi un cont pe site-ul Expo (ca și cum te-ai înregistra pe orice site)**
 
----
+### 1.1 — Deschide browserul pe calculator
+Du-te pe: **https://expo.dev/signup**
 
-## Pasul 3: Construiește APK-ul
+### 1.2 — Completează formularul
+- **Username:** alege orice nume (ex: `axon_user`)
+- **Email:** adresa ta de email
+- **Password:** o parolă sigură
+- Apasă butonul **"Create Account"**
 
-```
-eas build --platform android --profile preview
-```
+### 1.3 — Verifică emailul
+Vei primi un email de confirmare. Apasă linkul din email.
 
-- Procesul durează **10-20 minute** pe serverele Expo (gratuit)
-- Nu trebuie să stai cu calculatorul pornit — poți închide terminalul
-- Vei primi un email când e gata
-- La final vei vedea un link de download pentru fișierul `.apk`
+✅ **Gata cu Faza 1!** Ai acum contul Expo.
 
 ---
 
-## Pasul 4: Instalează APK-ul pe telefon
+## ═══ FAZA 2: Construiești APK-ul (faci asta în Replit) ═══
 
-**Varianta A — prin browser (recomandat):**
-1. Deschide link-ul de download de la Expo pe **telefonul tău** (din emailul primit)
-2. Descarcă fișierul `.apk`
-3. Deschide **Setări → Securitate → Surse necunoscute** → activează
-4. Deschide fișierul `.apk` din Descărcări și instalează
+**Ce faci: îmi dai comanda, eu rulez procesul de build pentru tine**
 
-**Varianta B — prin cablu USB:**
-1. Conectează telefonul la calculator cu cablul USB
-2. Pe telefon: Setări → Opțiuni dezvoltator → Depanare USB → activează
-3. Copiază fișierul `.apk` pe telefon
-4. Instalează-l din managerul de fișiere
+### 2.1 — Spune-mi username-ul și parola contului Expo
+Scrie-mi în chat:
+> „Username: [username-ul tău] / Parola: [parola ta]"
 
----
+Eu voi loga în contul tău din Replit și voi porni construcția APK-ului.
 
-## Pasul 5: Descarcă modelul AI (Phi-3 Mini)
+### 2.2 — Aștepți 15-20 minute
+Procesul de build rulează pe serverele Expo (nu pe calculatorul tău).
+Poți face orice altceva. Vei primi un **email** când e gata.
 
-Aceasta este **cea mai importantă** parte. Modelul are ~2.2 GB.
-
-**Metoda 1 — Direct pe telefon (WiFi):**
-1. Deschide Axon pe telefon
-2. Va apărea automat ecranul de instalare model
-3. Apasă **„Descarcă creierul neural"**
-4. Așteaptă descărcarea completă (~15-30 minute pe WiFi)
-
-**Metoda 2 — Manual (dacă ai descărcat deja modelul):**
-1. Descarcă modelul de pe PC:  
-   `https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf`
-2. Transferă fișierul pe telefon prin USB sau Google Drive
-3. Mută fișierul în: **Fișiere interne → Android → data → com.axon.ai → files → models**
-4. Asigură-te că se numește exact: `phi-3-mini-4k-instruct-q4.gguf`
-5. Repornește Axon — va detecta automat modelul
+### 2.3 — Ce vei primi
+Un email de la Expo cu un **link de descărcare** pentru fișierul `.apk`.
+Acel link funcționează și de pe telefon.
 
 ---
 
-## Pasul 6: Verificare
+## ═══ FAZA 3: Instalezi Axon pe telefon ═══
 
-Când totul e OK, în header-ul aplicației vei vedea:
+**Ce faci: instalezi aplicația din fișierul descărcat**
+
+### 3.1 — Deschide emailul de la Expo PE TELEFON
+(Deschide-l în Gmail sau altă aplicație de email de pe telefon)
+
+Apasă butonul **„Download"** sau **„Install"** din email.
+Sau copiază linkul și deschide-l în browserul telefonului.
+
+### 3.2 — Permite instalarea din surse externe
+
+Când apasă descărcarea, telefonul îți va arăta un mesaj de avertizare.
+Urmează pașii de mai jos în funcție de telefon:
+
+**Samsung:**
+- Apasă **Setări** (Settings)
+- → **Biometrie și securitate** (Biometrics and Security)
+- → **Instalare aplicații necunoscute** (Install unknown apps)
+- → Găsește **Chrome** sau **browserul tău**
+- → Activează **„Permite din această sursă"** (Allow from this source)
+
+**Huawei:**
+- Apasă **Setări**
+- → **Securitate**
+- → **Instalare aplicații necunoscute**
+- → Activează
+
+**Xiaomi / Redmi:**
+- Apasă **Setări**
+- → **Aplicații suplimentare** (Additional settings)
+- → **Securitate** (Privacy)
+- → **Surse necunoscute** (Unknown sources)
+- → Activează
+
+**Alte telefoane:**
+Dacă apare mesajul **„Surse necunoscute"** sau **„Unknown sources"** — apasă **„Setări"** în acel mesaj și activează opțiunea.
+
+### 3.3 — Instalează aplicația
+- Deschide **Descărcări** (sau **Files/Fișiere**) pe telefon
+- Găsește fișierul `Axon-AI.apk`
+- Apasă pe el
+- Apasă **„Instalează"** (Install)
+- Apasă **„Deschide"** (Open)
+
+✅ **Gata cu Faza 3!** Axon e instalat pe telefon.
+
+---
+
+## ═══ FAZA 4: Descarci creierul AI ═══
+
+**Ce faci: descarci modelul Phi-3 Mini direct prin aplicație (pe WiFi)**
+
+### 4.1 — Deschide Axon pe telefon
+Vei vedea un ecran albastru-închis cu un cerc și un icon de CPU.
+
+### 4.2 — Apasă butonul violet
+Butonul se numește: **„Descarcă creierul neural"**
+
+### 4.3 — Conectează-te la WiFi
+Asigură-te că ești pe WiFi (nu date mobile — fișierul are 2.2 GB).
+
+### 4.4 — Aștepți descărcarea
+Vei vedea o bară de progres și „X MB / 2200 MB".
+- Pe WiFi de casă (100 Mbps): ~20 minute
+- Pe WiFi mai lent: ~40 minute
+
+**Nu închide aplicația în timp ce descarcă!**
+
+### 4.5 — Modelul se încarcă automat
+După descărcare, va apărea mesajul: **„Se încarcă Axon în memorie..."**
+Aceasta durează ~30 secunde, o singură dată.
+
+### 4.6 — Verificare că totul funcționează
+În header-ul aplicației (sus, lângă „Axon") trebuie să scrie:
 ```
 🧠 Neural • Offline
 ```
 
-În loc de:
-```
-v1 • Offline
-```
+Dacă scrie asta — totul e perfect! Axon rulează cu Phi-3 Mini pe telefonul tău.
 
 ---
 
-## Fine-Tuning cu Google Colab (opțional, avansat)
+## ═══ FAZA 5: Folosești Axon ═══
 
-Dacă vrei să antrenezi Axon cu conversațiile tale:
+**Scrie orice în câmpul de jos și trimite. Axon gândește local, fără internet.**
 
-1. **Exportă datele** din Axon → Setări → „Exportă date antrenament"  
-   (salvează un fișier `.jsonl` în telefon)
-
-2. **Urcă în Google Drive** fișierul exportat
-
-3. **Deschide Colab:**  
-   https://colab.research.google.com → File → Upload notebook  
-   → Alege `axon_finetune.py` din proiect
-
-4. **Alege GPU gratuit:**  
-   Runtime → Change runtime type → T4 GPU
-
-5. **Rulează toate celulele** în ordine (30-60 minute)
-
-6. **Descarcă modelul** rezultat și instalează-l în locul celui original  
-   (același folder: `files/models/phi-3-mini-4k-instruct-q4.gguf`)
+### Ce se întâmplă în spate:
+- Mesajul tău → Creierul clasic verifică (instant)
+- Dacă nu știe → Phi-3 Mini răspunde (2-5 secunde)
+- Răspunsurile cu `🧠` înseamnă că Phi-3 Mini a răspuns
 
 ---
 
-## Probleme frecvente
+## Probleme și soluții
 
-| Problemă | Soluție |
-|----------|---------|
-| „App not installed" | Dezinstalează versiunea veche, reinstalează |
-| Modelul nu e detectat | Verifică numele exact al fișierului |
-| Axon nu răspunde cu 🧠 | Modelul poate dura 30 sec la prima pornire |
-| Descărcare întreruptă | Reapasă butonul de descărcare, reia de unde a rămas |
-| „Insufficient storage" | Trebuie cel puțin 3 GB liberi pe telefon |
+| Ce vezi | Ce faci |
+|---------|---------|
+| „App not installed" | Dezinstalează orice versiune veche a lui Axon și încearcă din nou |
+| Bara de progres s-a oprit | Verifică conexiunea WiFi, apasă din nou butonul de descărcare |
+| Nu apare 🧠 Neural | Închide complet aplicația și redeschide-o |
+| Telefonul devine lent | Normal — modelul AI e mare. Dă-i 1 minut să se încarce |
+| „Insufficient storage" | Eliberează cel puțin 3 GB spațiu pe telefon |
 
 ---
 
-## Cerințe minime telefon
+## Ce telefon îți trebuie
 
-- Android 8.0 sau mai nou
-- RAM: minim 4 GB (recomandat 6 GB+)
-- Spațiu: 3 GB liber
-- iOS 15+ (iPhone) — build separat necesar prin EAS
+- Android 8.0 sau mai nou ✅
+- Minim 4 GB RAM ✅
+- Minim 3 GB spațiu liber ✅
