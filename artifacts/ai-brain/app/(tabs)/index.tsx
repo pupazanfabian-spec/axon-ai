@@ -21,6 +21,7 @@ import MemoryModal from '@/components/MemoryModal';
 import FileUploadModal from '@/components/FileUploadModal';
 import PinScreen from '@/components/PinScreen';
 import ModelSetupScreen from '@/components/ModelSetupScreen';
+import FloatingBubble from '@/components/FloatingBubble';
 import { useBrain } from '@/context/BrainContext';
 import { useLLM } from '@/context/LLMContext';
 import { usePin } from '@/context/PinContext';
@@ -337,6 +338,18 @@ export default function ChatScreen() {
         onClose={() => setShowFiles(false)}
         onAddDocument={addDocument}
         onRemoveDocument={removeDocument}
+      />
+
+      {/* Bulina flotantă Axon */}
+      <FloatingBubble
+        onSendToChat={(text) => {
+          sendMessage(text);
+          scrollToBottom();
+        }}
+        onMemorize={(text) => {
+          sendMessage(`Memorează asta: "${text.slice(0, 300)}"`);
+          scrollToBottom();
+        }}
       />
     </View>
   );

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Axon AI",
     "slug": "ai-brain",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ai-brain",
@@ -17,7 +17,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.axon.ai",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Axon poate citi fișiere din galerie.",
+        "NSPhotoLibraryUsageDescription": "Axon poate citi fișiere și imagini din galerie.",
+        "NSCameraUsageDescription": "Axon poate fotografia ecranul sau obiecte pentru a citi și memora text.",
         "NSDocumentsFolderUsageDescription": "Axon stochează modelul AI local."
       }
     },
@@ -28,7 +29,9 @@
         "INTERNET",
         "ACCESS_NETWORK_STATE",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
       ],
       "usesCleartextTraffic": false
     },
