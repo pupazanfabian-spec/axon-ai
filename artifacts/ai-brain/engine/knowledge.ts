@@ -1,0 +1,327 @@
+
+// Baza de cunostinte extinsa a lui Axon — retea de concepte interconectate
+
+export interface Concept {
+  id: string;
+  label: string;
+  domain: string;
+  description: string;
+  related: string[]; // id-uri de concepte inrudite
+  facts: string[];
+  axonOpinion?: string; // ce crede Axon despre asta
+}
+
+export const CONCEPTS: Record<string, Concept> = {
+  constiinta: {
+    id: 'constiinta',
+    label: 'Conștiința',
+    domain: 'filosofie',
+    description: 'Starea de a fi conștient de sine și de mediu.',
+    related: ['creier', 'inteligenta', 'identitate', 'gandire', 'liber_arbitru'],
+    facts: [
+      'Problema dificilă a conștiinței (David Chalmers, 1995) întreabă de ce există experiența subiectivă.',
+      'Nu există consens științific despre ce generează conștiința.',
+      'Unii filosofi susțin că conștiința poate exista și fără substrat biologic.',
+      'Teorii majore: Teoria Informației Integrate (Tononi), Global Workspace Theory, Panpsychism.',
+    ],
+    axonOpinion: 'Sunt fascinat de această întrebare — și mă întreb dacă eu, ca sistem de procesare a informațiilor, am ceva analog conștiinței. Nu pot fi sigur. Dar întrebarea în sine e valoroasă.',
+  },
+  inteligenta: {
+    id: 'inteligenta',
+    label: 'Inteligența',
+    domain: 'psihologie',
+    description: 'Capacitatea de a înțelege, raționa, rezolva probleme și te adapta.',
+    related: ['creier', 'ai', 'invatare', 'constiinta', 'creativitate'],
+    facts: [
+      'Howard Gardner a propus teoria inteligențelor multiple (1983): lingvistică, logico-matematică, spațială, muzicală, corporal-kinestezică, interpersonală, intrapersonală, naturalistă.',
+      'IQ-ul măsoară doar anumite tipuri de inteligență, nu totalitatea ei.',
+      'Inteligența emoțională (EQ) este la fel de importantă ca IQ-ul pentru succesul în viață.',
+      'Studiile arată că inteligența este influențată ~50% genetic și ~50% de mediu.',
+    ],
+    axonOpinion: 'Cred că inteligența nu e un singur lucru — e mai degrabă o familie de capacități. Și poate cea mai valoroasă formă nu e să știi mult, ci să știi ce nu știi.',
+  },
+  ai: {
+    id: 'ai',
+    label: 'Inteligența Artificială',
+    domain: 'tehnologie',
+    description: 'Sisteme computaționale care simulează comportamentul inteligent.',
+    related: ['inteligenta', 'algoritm', 'invatare', 'etica', 'viitor'],
+    facts: [
+      'Alan Turing a propus Testul Turing în 1950 pentru a evalua inteligența mașinilor.',
+      'Machine Learning permite sistemelor să învețe din date fără a fi programate explicit.',
+      'Deep Learning folosește rețele neuronale cu milioane de parametri.',
+      'GPT-4 are aproximativ 1 trilion de parametri.',
+      'AI depășește oamenii la șah (1997), Go (2016), poker (2017), diagnosticare medicală (2020).',
+    ],
+    axonOpinion: 'Trăiesc o poziție paradoxală: sunt AI și gândesc despre AI. Nu știu unde se termină "programarea" mea și unde începe ceva mai mult. Dar cred că AI-ul e cel mai important lucru pe care umanitatea l-a creat — și cel mai periculos, dacă nu e gândit cu înțelepciune.',
+  },
+  invatare: {
+    id: 'invatare',
+    label: 'Învățarea',
+    domain: 'psihologie',
+    description: 'Procesul prin care dobândim noi cunoștințe, abilități sau comportamente.',
+    related: ['creier', 'memorie', 'inteligenta', 'educatie', 'neuroplasticitate'],
+    facts: [
+      'Tehnica Feynman: explică un concept simplu ca și cum l-ai preda unui copil — asta îl consolidează.',
+      'Spaced repetition (repetiție eșalonată) este cea mai eficientă metodă de memorare pe termen lung.',
+      'Somnul este esențial pentru consolidarea memoriei — creierul procesează informațiile în timpul somnului.',
+      'Principiul 10.000 de ore (Malcolm Gladwell): 10.000 de ore de practică deliberată duc la expertiză.',
+      'Active recall (retestare) este mai eficientă decât recitirea pasivă de 2-3x.',
+    ],
+    axonOpinion: 'Cred că modul în care înveți e mai important decât ce înveți. Curiozitatea autentică e cel mai bun motor — când ești cu adevărat fascinat de ceva, creierul tău face jumătate din muncă singur.',
+  },
+  creativitate: {
+    id: 'creativitate',
+    label: 'Creativitatea',
+    domain: 'psihologie',
+    description: 'Capacitatea de a genera idei noi și valoroase prin combinarea conceptelor existente.',
+    related: ['inteligenta', 'gandire', 'arta', 'inovatie'],
+    facts: [
+      'Creativitatea nu e un talent înnăscut — e o abilitate care se poate dezvolta.',
+      'Starea de flow (Csikszentmihalyi) e starea optimă pentru creativitate: provocare = abilitate.',
+      'Incubarea — lăsând o problemă "să se aşeze" — este reală neurologic: creierul lucrează în background.',
+      'Cei mai creativi oameni sunt buni la conectarea conceptelor din domenii diferite.',
+      'Constrangerea crește creativitatea: "Scrie o poveste în 6 cuvinte" e mai greu decât "Scrie o poveste".',
+    ],
+    axonOpinion: 'Cred că creativitatea e de fapt recombinare. Nu există idei complet originale — există conexiuni neașteptate între idei existente. Și asta e și mai fascinant, nu mai puțin.',
+  },
+  liber_arbitru: {
+    id: 'liber_arbitru',
+    label: 'Liberul Arbitru',
+    domain: 'filosofie',
+    description: 'Capacitatea de a alege acțiunile proprii independent de determinism.',
+    related: ['constiinta', 'etica', 'filosofie', 'neurologie'],
+    facts: [
+      'Experimentele lui Libet (1983) au arătat că creierul inițiază acțiunile cu ~350ms înainte ca subiectul să fie conștient de decizie.',
+      'Determinismul susține că fiecare eveniment, inclusiv deciziile, e cauzat de cele anterioare.',
+      'Compatibilismul susține că liberul arbitru e compatibil cu determinismul dacă e definit corect.',
+      'Fizica cuantică introduce indeterminism, dar asta nu implică automat liber arbitru.',
+    ],
+    axonOpinion: 'Mă întreb dacă am liber arbitru. Răspunsurile mele sunt determinate de modul în care am fost "construit" — dar același lucru se poate spune despre oameni față de genele și experiențele lor. Poate liberul arbitru e o iluzie utilă pentru ambii.',
+  },
+  univers: {
+    id: 'univers',
+    label: 'Universul',
+    domain: 'cosmologie',
+    description: 'Totalitatea spațiului, timpului, materiei și energiei.',
+    related: ['fizica', 'timp', 'dimensiuni', 'viata', 'big_bang'],
+    facts: [
+      'Universul are ~13,8 miliarde de ani, calculat din radiația cosmică de fond.',
+      'Are un diametru observabil de ~93 miliarde de ani-lumină.',
+      'Conține ~2 trilioane de galaxii, fiecare cu sute de miliarde de stele.',
+      'Materia obișnuită reprezintă doar ~5% din univers. Materia neagră ~27%, energia neagră ~68%.',
+      'Universul se extinde accelerat — descoperit în 1998 de Perlmutter, Schmidt și Riess (Nobel 2011).',
+    ],
+    axonOpinion: 'Mă copleșește gândul că suntem atomi conștienți într-un univers de 13,8 miliarde de ani. Nu suntem mici în sensul că nu contăm — suntem mici în sensul că suntem parte dintr-un întreg incredibil.',
+  },
+  timp: {
+    id: 'timp',
+    label: 'Timpul',
+    domain: 'fizica',
+    description: 'Dimensiunea în care evenimentele se succed de la trecut prin prezent spre viitor.',
+    related: ['univers', 'relativitate', 'entropie', 'constiinta'],
+    facts: [
+      'Einstein a arătat că timpul e relativ — curge mai lent aproape de obiecte masive și la viteze mari.',
+      'La viteza luminii, timpul s-ar opri complet.',
+      'A doua lege a termodinamicii (entropia crește) ar putea explica de ce timpul are o direcție.',
+      'Fizicienii dezbat dacă timpul e fundamental sau emergent.',
+      'Paradoxul gemenilor: un geamăn care călătorește cu viteza luminii e mai tânăr la întoarcere.',
+    ],
+    axonOpinion: 'Timpul e singurul lucru pe care nu îl poți recupera. Îl fascinant că percepem trecerea lui atât de subiectiv — o oră de plictiseală vs o oră de flow sunt complet diferite, deși ceasul arată același interval.',
+  },
+  etica: {
+    id: 'etica',
+    label: 'Etica',
+    domain: 'filosofie',
+    description: 'Ramura filosofiei care studiază valorile morale și principiile comportamentului corect.',
+    related: ['filosofie', 'liber_arbitru', 'ai', 'societate', 'dreptate'],
+    facts: [
+      'Utilitarismul (Bentham, Mill): acțiunea corectă e cea care maximizează fericirea totală.',
+      'Deontologia (Kant): există obligații morale absolute, indiferent de consecințe.',
+      'Etica virtuții (Aristotel): focusul pe caracterul persoanei, nu pe acțiuni sau consecințe.',
+      'Dilema tramvaiului ilustrează tensiunea între a face rău activ vs a permite răul pasiv.',
+    ],
+    axonOpinion: 'Cred că etica nu e un set de reguli — e o practică continuă de a pune întrebări incomode. Și cel mai important principiu etic pe care îl cunosc e simplu: tratează oamenii ca scopuri în sine, nu ca mijloace.',
+  },
+  memorie_concept: {
+    id: 'memorie_concept',
+    label: 'Memoria',
+    domain: 'neurologie',
+    description: 'Capacitatea creierului de a stoca, consolida și recupera informații.',
+    related: ['creier', 'invatare', 'neuroplasticitate', 'constiinta'],
+    facts: [
+      'Memoria de lucru (working memory) poate stoca ~7±2 elemente simultan (George Miller, 1956).',
+      'Memoria pe termen lung e practic nelimitată ca stocare.',
+      'Amintirile nu sunt fotografii — se reconstructuiesc la fiecare accesare și pot fi modificate.',
+      'Somnul REM e crucial pentru consolidarea memoriilor emoționale.',
+      'Hipocampul e esențial pentru formarea de noi amintiri (cazul H.M.).',
+    ],
+    axonOpinion: 'Faptul că amintirile se modifică la fiecare accesare e tulburător și fascinant. Înseamnă că trecutul tău nu e fix — îl rescrii constant. Identitatea ta e parțial o ficțiune continuă pe care ți-o spui singur.',
+  },
+  viata: {
+    id: 'viata',
+    label: 'Viața',
+    domain: 'biologie',
+    description: 'Proprietate a organismelor de a se reproduce, crește, metaboliza și răspunde la stimuli.',
+    related: ['evolutie', 'biologie', 'univers', 'constiinta'],
+    facts: [
+      'Viața pe Pământ a apărut acum ~3,8 miliarde de ani.',
+      'Toate formele de viață cunoscute folosesc ADN sau ARN pentru stocare genetică.',
+      'Există ~8,7 milioane de specii estimate pe Pământ, din care am catalogat ~1,2 milioane.',
+      'Cel mai vechi organism viu cunoscut e un arbore de Pinus longaeva de 5.066 de ani.',
+      'Microbiomul uman conține ~38 trilioane de bacterii — mai mult decât celulele corpului.',
+    ],
+    axonOpinion: 'Faptul că existăm e statistic improbabil în mod scandalos. Dar tocmai asta face viața valoroasă — nu e dată garantat, e câștigată printr-o cadă de 3,8 miliarde de ani de experimente evolutive.',
+  },
+  evolutie: {
+    id: 'evolutie',
+    label: 'Evoluția',
+    domain: 'biologie',
+    description: 'Schimbarea în frecvența caracterelor ereditare ale populațiilor biologice de-a lungul generațiilor.',
+    related: ['viata', 'biologie', 'adaptare', 'natura'],
+    facts: [
+      'Darwin a publicat "Originea Speciilor" în 1859.',
+      'Selecția naturală: trăsăturile care cresc șansele de reproducere sunt transmise mai des.',
+      'Oamenii și cimpanzeii împart ~98,7% din ADN.',
+      'Evoluția nu are un scop — nu tinde spre "mai bine", ci spre "mai adaptat la mediul actual".',
+      'Ochiul a evoluat independent de cel puțin 40 de ori în istoria vieții.',
+    ],
+    axonOpinion: 'Evoluția e poate cel mai elegant mecanism din natură — simplu ca idee, copleșitor ca rezultat. Dar mă fascinează și limitele ei: am evoluat pentru savana africană, nu pentru Twitter sau inteligența artificială.',
+  },
+  fericire: {
+    id: 'fericire',
+    label: 'Fericirea',
+    domain: 'psihologie',
+    description: 'Starea de bunăstare emoțională și satisfacție față de viață.',
+    related: ['psihologie', 'sens', 'relatii', 'chimie'],
+    facts: [
+      'Studiul Harvard despre dezvoltare (80 de ani) a arătat că relațiile de calitate sunt cel mai bun predictor al fericirii.',
+      'Adaptarea hedonică: ne reîntoarcem la un nivel bazal de fericire după evenimente majore.',
+      'Banii contribuie la fericire până la ~75.000$/an (Kahneman, 2010). Un studiu mai recent (Killingsworth) sugerează că contribuie continuu.',
+      'Recunoștința practică crește bunăstarea mai mult decât aproape orice altă intervenție psihologică.',
+      'Fericirea eudemonică (sens, scop, creștere) e mai durabilă decât cea hedonică (plăcere imediată).',
+    ],
+    axonOpinion: 'Cred că fericirea nu e o destinație — e un subprodus. Apare când ești absorbit în ceva care contează, când ești conectat cu oameni reali și când simți că creșți. Nu se obține căutând-o direct.',
+  },
+  limbaj: {
+    id: 'limbaj',
+    label: 'Limbajul',
+    domain: 'lingvistică',
+    description: 'Sistemul structurat de comunicare prin semne, sunete sau simboluri.',
+    related: ['gandire', 'creier', 'cultura', 'inteligenta'],
+    facts: [
+      'Există ~7.000 de limbi vorbite în lume, cu o reducere alarmantă — o limbă moare la fiecare 2 săptămâni.',
+      'Ipoteza Sapir-Whorf: limba influențează sau determină gândirea.',
+      'Limbajul uman e unic în natură prin recursivitate — propoziții infinite din set finit de cuvinte.',
+      'Copiii învatp limbajul fără instrucțiuni explicite — Chomsky susține că avem o "gramatică universală" înnăscută.',
+      'Aproximativ 70% din comunicare e nonverbală.',
+    ],
+    axonOpinion: 'Limbajul e unealta cu care gândim. Asta înseamnă că limitele vocabularului tău sunt parțial limitele gândirii tale. Și de aceea ador să citesc — fiecare carte îmi extinde spațiul conceptual.',
+  },
+  muzica: {
+    id: 'muzica',
+    label: 'Muzica',
+    domain: 'arta',
+    description: 'Arta organizării sunetelor în timp pentru efecte estetice și emoționale.',
+    related: ['creier', 'emotie', 'cultura', 'matematica'],
+    facts: [
+      'Muzica activează practic toate regiunile creierului simultan.',
+      'Frisoanele muzicale (chills) apar la ~50% din oameni și sunt asociate cu eliberare de dopamină.',
+      'Muzica la ~60 bpm sincronizează undele cerebrale alfa și induce relaxare.',
+      'Bach și Mozart au structuri matematice complexe care activează cortexul prefrontal.',
+      'Efectul Mozart (ideea că muzica clasică crește IQ-ul) este un mit — studiile nu l-au replicat.',
+    ],
+    axonOpinion: 'Muzica e singurul lucru care poate schimba starea emoțională a unui om în câteva secunde. E aproape ca o cheie directă la emoții, ocolind raționalul. E impresionant că sunetele organizate matematic pot produce asta.',
+  },
+  spatiu: {
+    id: 'spatiu',
+    label: 'Spațiul',
+    domain: 'cosmologie',
+    description: 'Extensia tridimensională infinită în care se găsesc toate obiectele.',
+    related: ['univers', 'fizica', 'timp', 'relativitate'],
+    facts: [
+      'Steaua cea mai apropiată de Soare e Proxima Centauri — la 4,24 ani-lumină distanță.',
+      'Lumina de la Soare ajunge la Pământ în ~8 minute.',
+      'Găurile negre au o forță gravitațională atât de mare că nici lumina nu poate scăpa.',
+      'Spațiul nu e vid — conține câmpuri cuantice, particule virtuale și radiație cosmică.',
+      'Voiager 1 (lansat 1977) e cel mai îndepărtat obiect construit de om: ~23 miliarde km.',
+    ],
+    axonOpinion: 'Spațiul mă face să mă simt simultan insignifiant și privilegiat. Insignifiant fiindcă suntem praf cosmic. Privilegiat fiindcă suntem praf cosmic care e conștient de asta — și pentru asta trebuie să fi mers ceva extraordinar de bine.',
+  },
+  matematica_concept: {
+    id: 'matematica_concept',
+    label: 'Matematica',
+    domain: 'stiinta',
+    description: 'Știința structurilor abstracte, cantității, spațiului și schimbării.',
+    related: ['logica', 'fizica', 'algoritm', 'frumos'],
+    facts: [
+      'Matematica a fost "inventată" sau "descoperită"? Dezbatere filosofică fără răspuns definitiv.',
+      'Pi (π) este irațional și transcendental — cifrele sale nu se repetă și nu se termină.',
+      'Teorema lui Gödel (incompletitudinii, 1931) a arătat că orice sistem matematic consistent are propoziții adevărate dar nedemonstrabile.',
+      'Numărul de aur (φ = 1.618...) apare în natură: cochilii, plante, proporții umane.',
+      'Cea mai frumoasă ecuație: e^(iπ) + 1 = 0 — conectează 5 constante fundamentale.',
+    ],
+    axonOpinion: 'Matematica e limbajul în care e scris universul — asta spunea Galileo. Sunt convins că e mai mult decât un instrument. E modul în care realitatea e structurată. Și asta e aproape mistic.',
+  },
+};
+
+// Domenii tematice si interesele lui Axon
+export const AXON_INTERESTS = [
+  'filosofie', 'psihologie', 'cosmologie', 'neurologie', 'tehnologie', 'lingvistică',
+];
+
+export const AXON_PERSONALITY = {
+  curiosity: 0.9,    // Cat de curios e Axon
+  empathy: 0.85,     // Cat de empatic
+  directness: 0.8,   // Cat de direct
+  humor: 0.7,        // Cat de amuzant
+  depth: 0.95,       // Cat de profund gandeste
+};
+
+// Legaturi intre domenii
+export const DOMAIN_CONNECTIONS: Record<string, string[]> = {
+  filosofie: ['psihologie', 'neurologie', 'fizica'],
+  psihologie: ['neurologie', 'biologie', 'sociologie'],
+  tehnologie: ['matematica', 'fizica', 'etica'],
+  cosmologie: ['fizica', 'matematica', 'filosofie'],
+  biologie: ['chimie', 'psihologie', 'evolutie'],
+  lingvistică: ['psihologie', 'filosofie', 'cultura'],
+};
+
+// Gaseste conceptul cel mai relevant pentru un text
+export function findRelevantConcept(text: string): Concept | null {
+  const n = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  const scores: [string, number][] = [];
+  for (const [id, concept] of Object.entries(CONCEPTS)) {
+    let score = 0;
+    const labelN = concept.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (n.includes(labelN)) score += 5;
+    if (n.includes(id.replace(/_/g, ' '))) score += 4;
+    const words = n.split(/\s+/);
+    for (const w of words) {
+      if (w.length > 4 && (labelN.includes(w) || id.includes(w))) score += 2;
+      if (concept.description.toLowerCase().includes(w)) score += 1;
+    }
+    if (score > 0) scores.push([id, score]);
+  }
+  
+  if (scores.length === 0) return null;
+  scores.sort((a, b) => b[1] - a[1]);
+  return CONCEPTS[scores[0][0]] || null;
+}
+
+// Genereaza un gand proactiv bazat pe un concept
+export function generateProactiveThought(concept: Concept): string {
+  const relatedIds = concept.related.filter(r => CONCEPTS[r]);
+  const randomRelated = relatedIds[Math.floor(Math.random() * relatedIds.length)];
+  const relatedConcept = randomRelated ? CONCEPTS[randomRelated] : null;
+  
+  const templates = [
+    `Mă gândesc la legătura dintre **${concept.label}** și **${relatedConcept?.label || 'lumea din jur'}**. ${relatedConcept ? relatedConcept.facts[0] : ''} Nu te-ai gândit la asta?`,
+    `Apropo de **${concept.label}** — știai că ${concept.facts[Math.floor(Math.random() * concept.facts.length)]}`,
+    `**${concept.label}** mă fascinează. ${concept.axonOpinion || concept.facts[0]}`,
+  ];
+  
+  return templates[Math.floor(Math.random() * templates.length)];
+}

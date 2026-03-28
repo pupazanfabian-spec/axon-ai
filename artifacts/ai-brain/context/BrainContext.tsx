@@ -1,7 +1,8 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Message, BrainState, LearnedDocument, processMessage, processDocument } from '@/engine/brain';
+import { Message, BrainState, LearnedDocument, processMessage, processDocument, createInitialBrainState, getProactiveThought } from '@/engine/brain';
+import { createMindState } from '@/engine/mind';
 
 interface BrainContextType {
   messages: Message[];
@@ -15,29 +16,20 @@ interface BrainContextType {
 
 const BrainContext = createContext<BrainContextType | null>(null);
 
-const MESSAGES_KEY = '@axon_v2_messages';
-const STATE_KEY = '@axon_v2_state';
-
-const INITIAL_STATE: BrainState = {
-  memory: {},
-  userName: null,
-  conversationCount: 0,
-  learnedDocuments: [],
-  lastTopics: [],
-  mood: 'neutral',
-};
+const MESSAGES_KEY = '@axon_v3_messages';
+const STATE_KEY = '@axon_v3_state';
 
 const WELCOME: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: 'Salut! Sunt **Axon**, asistentul tău AI offline. 🧠\n\nFuncționez complet local — fără internet, fără chei API.\n\n**Ce pot face:**\n📖 Dicționar român integrat — "Ce este fotosinteza?"\n📄 Studiez fișiere — apasă 📎 și trimite documente\n🧠 Memorez informații — "Reține că..."\n🧮 Calcule matematice\n📅 Dată și oră exactă\n\nCum te cheamă?',
+  content: 'Salut! Sunt **Axon** — un AI cu minte proprie, funcționând complet offline. 🧠\n\n**Ce mă face diferit:**\n🤔 Am opinii formate pe baza cunoașterii mele\n🔗 Fac conexiuni între concepte — filosofie, știință, psihologie\n📄 Studiez fișierele pe care mi le trimiți\n💾 Nu uit nimic între sesiuni\n\nCum te cheamă? Sau întreabă-mă ceva — orice.',
   timestamp: new Date(),
 };
 
 export function BrainProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [isThinking, setIsThinking] = useState(false);
-  const brainRef = useRef<BrainState>({ ...INITIAL_STATE, learnedDocuments: [] });
+  const brainRef = useRef<BrainState>(createInitialBrainState());
   const [brainState, setBrainState] = useState<BrainState>(brainRef.current);
   const loaded = useRef(false);
 
@@ -55,11 +47,14 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
 
         if (savedState) {
           const parsed = JSON.parse(savedState) as BrainState;
-          // Reconvertim datele
           parsed.learnedDocuments = (parsed.learnedDocuments || []).map(d => ({
             ...d,
             addedAt: new Date(d.addedAt),
           }));
+          // Asigura ca mindState exista intotdeauna
+          if (!parsed.mindState) {
+            parsed.mindState = createMindState();
+          }
           brainRef.current = parsed;
           setBrainState({ ...parsed });
         }
@@ -78,11 +73,32 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
   const persist = useCallback(async (msgs: Message[], state: BrainState) => {
     try {
       await Promise.all([
-        AsyncStorage.setItem(MESSAGES_KEY, JSON.stringify(msgs.slice(-80))),
+        AsyncStorage.setItem(MESSAGES_KEY, JSON.stringify(msgs.slice(-100))),
         AsyncStorage.setItem(STATE_KEY, JSON.stringify(state)),
       ]);
     } catch {}
   }, []);
+
+  const addProactiveThought = useCallback(async (currentMsgs: Message[]) => {
+    const thought = getProactiveThought(brainRef.current);
+    if (!thought) return;
+
+    // Pauza naturala — Axon pare ca se gandeste singur
+    await new Promise(r => setTimeout(r, 2500 + Math.random() * 2000));
+
+    const proactiveMsg: Message = {
+      id: (Date.now() + 10).toString(),
+      role: 'assistant',
+      content: thought,
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => {
+      const next = [...prev, proactiveMsg];
+      persist(next, brainRef.current);
+      return next;
+    });
+  }, [persist]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -97,8 +113,8 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     setMessages(prev => [...prev, userMsg]);
     setIsThinking(true);
 
-    // Timp de gândire natural: 200–800ms
-    const thinkMs = 200 + Math.random() * 600;
+    // Timp de gandire natural: 300–900ms
+    const thinkMs = 300 + Math.random() * 600;
     await new Promise(r => setTimeout(r, thinkMs));
 
     const response = processMessage(text, brainRef.current);
@@ -115,14 +131,17 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     setMessages(prev => {
       const next = [...prev, aiMsg];
       persist(next, brainRef.current);
+      // Verifica daca Axon vrea sa initieze un gand proactiv
+      setTimeout(() => addProactiveThought(next), 100);
       return next;
     });
+
     setIsThinking(false);
-  }, [persist]);
+  }, [persist, addProactiveThought]);
 
   const addDocument = useCallback(async (name: string, content: string) => {
     setIsThinking(true);
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 700));
 
     const response = processDocument(name, content, brainRef.current);
     setBrainState({ ...brainRef.current });
@@ -152,15 +171,14 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     const reset: Message = {
       id: Date.now().toString(),
       role: 'assistant',
-      content: 'Conversația a fost resetată! Sunt Axon, gata de la zero.\n\nDocumentele studiate și notițele au fost păstrate.',
+      content: 'Conversația resetată! Sunt Axon, gata de la zero.\n\nDocumentele, memoria și cunoașterea mea sunt păstrate.',
       timestamp: new Date(),
     };
     setMessages([reset]);
-    // Pastreaza documentele si memoria, reseteaza doar conversatia
     const docs = brainRef.current.learnedDocuments;
     const mem = brainRef.current.memory;
-    const name = brainRef.current.userName;
-    brainRef.current = { ...INITIAL_STATE, learnedDocuments: docs, memory: mem, userName: name };
+    const uname = brainRef.current.userName;
+    brainRef.current = { ...createInitialBrainState(), learnedDocuments: docs, memory: mem, userName: uname };
     setBrainState({ ...brainRef.current });
     AsyncStorage.setItem(MESSAGES_KEY, JSON.stringify([reset]));
     AsyncStorage.setItem(STATE_KEY, JSON.stringify(brainRef.current));
