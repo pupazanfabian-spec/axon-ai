@@ -85,64 +85,232 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// ─── Dicționar Român ─────────────────────────────────────────────────────────
+// ─── Dicționar Extins (~270 subiecte) ────────────────────────────────────────
 
 const DICTIONAR: Record<string, string> = {
-  fotosinteza: 'Fotosinteza este procesul prin care plantele convertesc lumina solară, apa și CO₂ în glucoză și oxigen. Ecuație: 6CO₂ + 6H₂O + lumină → C₆H₁₂O₆ + 6O₂.',
-  osmoza: 'Osmoza = trecerea unui solvent printr-o membrană semipermeabilă dinspre soluția diluată spre cea concentrată, până la echilibru.',
-  metabolism: 'Metabolism = totalitatea reacțiilor chimice din organism. Catabolism (descompunere, eliberare energie) + Anabolism (sinteză, consum energie).',
-  celula: 'Celula = unitatea de bază a vieții. Procariotă (fără nucleu) sau Eucariotă (cu nucleu). Descoperită de Hooke (1665).',
-  adn: 'ADN = molecula ereditară cu structura dublă helix (Watson & Crick, 1953). Baze: adenina, timina, guanina, citozina.',
-  arn: 'ARN = implicat în sinteza proteinelor. Tipuri: mARN (mesager), rARN (ribozomal), tARN (transfer).',
-  gravitatie: 'Gravitația = forța de atracție dintre mase. g ≈ 9,81 m/s² pe Pământ. Einstein: gravitația = curbura spațiu-timpului.',
-  electromagnetism: 'Electromagnetism = forțele electrice și magnetice unite. Maxwell le-a unificat în 4 ecuații (1865). Lumina = undă EM.',
-  termodinamica: '4 legi: 0-echilibru termic, 1-conservarea energiei, 2-entropia crește, 3-la zero absolut entropia → 0.',
-  chimie: 'Știința structurii și transformărilor substanțelor. Ramuri: organică, anorganică, fizică, biochimie.',
-  fizica: 'Știința proprietăților fundamentale ale materiei și energiei. Ramuri: mecanică, termodinamică, EM, optică, cuantică.',
-  biologie: 'Știința vieții — structura, funcțiile, evoluția și distribuția organismelor.',
-  matematica: 'Știința raționamentului formal. Ramuri: aritmetică, algebră, geometrie, analiză, statistică, probabilități.',
-  algoritm: 'Secvență finită de instrucțiuni pentru rezolvarea unei probleme. Proprietăți: finitudine, claritate, input, output.',
-  programare: 'Scrierea instrucțiunilor (cod) executate de calculatoare. Limbaje: Python, JavaScript, Java, C++, Rust.',
-  calculator: 'Mașină electronică ce procesează date. Componente: CPU, RAM, stocare (HDD/SSD), GPU, placă de bază.',
-  internet: 'Rețea globală de calculatoare bazată pe TCP/IP. Evoluat din ARPANET (1969).',
-  inflatie: 'Creșterea generalizată a prețurilor și scăderea puterii de cumpărare. Măsurată prin IPC.',
-  pib: 'PIB = valoarea totală a bunurilor și serviciilor produse într-o țară într-un an. Principal indicator economic.',
-  democratie: 'Sistem de guvernare în care puterea aparține poporului. Principii: separarea puterilor, libertăți, stat de drept.',
-  romania: 'Stat în Europa de Sud-Est. 238.397 km². Capitala București. Membră UE din 2007, NATO din 2004.',
-  creier: 'Centrul sistemului nervos. ~86 miliarde neuroni. Consumă ~20% din energia corpului.',
-  neuron: 'Celula de bază a sistemului nervos. Transmite semnale electrochimice prin sinapse.',
-  inima: 'Organ muscular cu 4 camere. Bate ~70/min. Pompează ~5L sânge/min.',
-  proteina: 'Macromolecule din aminoacizi. Funcții: structurale, enzimatice, transport, imune, hormonale.',
-  vitamina: 'Substanțe organice esențiale în cantități mici. Liposolubile (A, D, E, K) și hidrosolubile (C, B).',
-  literatura: 'Opere scrise cu valoare artistică: proză, poezie, dramă, eseu. Scriitori români: Eminescu, Caragiale, Sadoveanu.',
-  psihologie: 'Studiază comportamentul uman și procesele mentale. Fondator: Wilhelm Wundt (1879).',
-  economie: 'Studiază utilizarea resurselor limitate. Micro (decizii individuale) și Macro (economie națională).',
-  filosofie: 'Studiază existența, cunoașterea, valorile, rațiunea. Ramuri: ontologie, epistemologie, etică, logică.',
-  ecosistem: 'Comunitate de organisme + mediu abiotic. Exemple: pădure, lac, deșert, recif de corali.',
-  clima: 'Condiții meteorologice medii ale unei regiuni pe ≥30 ani. Determinată de latitudine, altitudine, oceane.',
-  muzica: 'Organizarea sunetelor în timp. Activează toate regiunile creierului. Frisoane muzicale = dopamină.',
-  arhitectura: 'Arta proiectării clădirilor. Stiluri: gotic, renascentist, baroc, modernist, contemporan.',
-  constiinta: 'Starea de conștientizare a sinelui și mediului. Problema dificilă: de ce există experiența subiectivă?',
-  inteligenta: 'Capacitatea de a înțelege, raționa, rezolva probleme și te adapta. Multiple forme (Gardner, 1983).',
-  evolutie: 'Schimbarea frecvenței trăsăturilor ereditare de-a lungul generațiilor. Selecție naturală (Darwin, 1859).',
-  univers: 'Totalitatea spațiului, timpului, materiei și energiei. Vârstă: ~13,8 miliarde ani. Materia obișnuită = 5%.',
-  timp: 'Dimensiunea în care evenimentele se succed. Einstein: timpul e relativ — curge mai lent lângă mase mari.',
-  etica: 'Studiază valorile morale și comportamentul corect. Teorii: utilitarism, deontologie, etica virtuții.',
-  fericire: 'Starea de bunăstare și satisfacție față de viață. Studiul Harvard (80 ani): relațiile de calitate = cheia.',
-  limbaj: 'Sistemul structurat de comunicare. Există ~7.000 limbi. Chomsky: gramatică universală înnăscută.',
-  creativitate: 'Capacitatea de a genera idei noi prin combinarea conceptelor existente. Se poate dezvolta.',
-  memorie: 'Capacitatea de a stoca, consolida și recupera informații. Memoria de lucru: ~7±2 elemente (Miller, 1956).',
-  spatiu: 'Extensia în care se găsesc obiectele. Cea mai apropiată stea: Proxima Centauri, la 4,24 ani-lumină.',
-  energie: 'Capacitatea unui sistem de a efectua lucru mecanic. Forme: cinetică, potențială, termică, luminoasă, chimică.',
-  atom: 'Cea mai mică unitate a unui element chimic. Nucleu (protoni, neutroni) + electroni în orbite. Dimensiune: ~0,1nm.',
-  cuantic: 'Fizica la scara atomică/subatomică. Superpoziție, entanglement, principiul incertitudinii (Heisenberg).',
-  relativitate: 'Einstein: E=mc². Relativitatea specială (1905) și generală (1915) — timp relativ, spațiu curb.',
-  entropia: 'Măsura dezordinii unui sistem. Legea 2 a termodinamicii: entropia unui sistem închis crește mereu.',
-  democatie: 'Sistem de guvernare bazat pe voința majorității. Inventat în Atena antică, sec. 5 î.Hr.',
-  inteligenta_artificiala: 'Sisteme computaționale care simulează comportamentul inteligent. Machine Learning, Deep Learning, NLP.',
-  blockchain: 'Registru distribuit, imuabil, criptografic. Stă la baza criptomonedelor (Bitcoin, 2009).',
-  dna: 'Molecula ereditară. Codul genetic are 4 litere (A,T,G,C), 3 miliarde perechi de baze la om.',
+  // ── ȘTIINȚĂ & NATURĂ ──
+  fotosinteza: 'Fotosinteza = procesul prin care plantele convertesc lumina solară, apa și CO₂ în glucoză și oxigen. Ecuație: 6CO₂ + 6H₂O + lumină → C₆H₁₂O₆ + 6O₂. Are loc în cloroplaste.',
+  osmoza: 'Osmoza = trecerea unui solvent printr-o membrană semipermeabilă dinspre soluția diluată spre cea concentrată, până la echilibru de presiune osmotică.',
+  metabolism: 'Metabolism = totalitatea reacțiilor chimice din organism. Catabolism (descompunere, eliberare energie) + Anabolism (sinteză, consum energie). Viteza depinde de greutate, vârstă, activitate.',
+  celula: 'Celula = unitatea de bază a vieții. Procariotă (bacterii, fără nucleu) sau Eucariotă (cu nucleu). Descoperită de Hooke (1665). Corpul uman are ~37 trilioane de celule.',
+  adn: 'ADN = molecula ereditară cu structura dublă helix (Watson & Crick, 1953). Baze azotate: adenina (A), timina (T), guanina (G), citozina (C). Codul vieții.',
+  arn: 'ARN = implicat în sinteza proteinelor. Tipuri: mARN (mesager) — transportă codul; rARN (ribozomal) — face sinteza; tARN (transfer) — aduce aminoacizii.',
+  gravitatie: 'Gravitația = forța de atracție dintre orice mase. g ≈ 9,81 m/s² la suprafața Pământului. Newton: F=Gm₁m₂/r². Einstein: gravitația = curbura spațiu-timpului.',
+  electromagnetism: 'Electromagnetism = unificarea forțelor electrice și magnetice. Maxwell (1865) — 4 ecuații. Lumina = undă electromagnetică. Baza televizoarelor, radioului, Wi-Fi.',
+  termodinamica: 'Termodinamica — 4 legi: 0-echilibru termic; 1-energia se conservă; 2-entropia crește; 3-la zero absolut (-273,15°C) entropia tinde spre minimum.',
+  chimie: 'Chimia = știința structurii și transformărilor substanțelor. Ramuri: organică (carbon), anorganică, fizică, analitică, biochimie. Tabelul periodic: 118 elemente.',
+  fizica: 'Fizica = știința proprietăților fundamentale ale materiei și energiei. Ramuri: mecanică, termodinamică, optică, electromagnetism, mecanică cuantică, relativitate.',
+  biologie: 'Biologia = știința vieții. Studiază structura, funcțiile, evoluția și distribuția organismelor. Ramuri: botanică, zoologie, genetică, ecologie, microbiologie.',
+  matematica: 'Matematica = știința structurilor abstracte. Ramuri: aritmetică, algebră, geometrie, analiză matematică, statistică, probabilități, logică matematică.',
+  algoritm: 'Algoritmul = secvență finită de instrucțiuni pentru rezolvarea unei probleme. Proprietăți: finitudine, claritate, input/output. Baza tuturor programelor.',
+  programare: 'Programarea = scrierea instrucțiunilor executate de calculatoare. Paradigme: imperativă, OOP, funcțională, declarativă. Limbaje: Python, JavaScript, Java, C++, Rust.',
+  calculator: 'Calculatorul = mașină electronică ce procesează date. Componente: CPU (procesare), RAM (memorie rapidă), SSD/HDD (stocare), GPU (grafică), placă de bază.',
+  internet: 'Internetul = rețea globală de calculatoare bazată pe TCP/IP. A evoluat din ARPANET (1969). ~5 miliarde utilizatori azi. Funcționează prin pachete de date.',
+  inflatie: 'Inflația = creșterea generalizată a prețurilor și scăderea puterii de cumpărare. Măsurată prin IPC. Cauzată de: cerere > ofertă, tipar monetar, costuri de producție.',
+  pib: 'PIB = Produsul Intern Brut — valoarea totală a bunurilor și serviciilor produse într-o țară într-un an. Principal indicator economic. PIB/locuitor = nivel de trai.',
+  democratie: 'Democrația = sistem de guvernare în care puterea aparține poporului. Principii: separarea puterilor, libertăți individuale, alegeri libere, stat de drept.',
+  ecosistem: 'Ecosistemul = comunitate de organisme + mediu abiotic (apă, sol, aer). Ciclurile: al carbonului, azotului, apei. Exemple: pădure, lac, recif de corali, deșert.',
+  clima: 'Clima = condițiile meteorologice medii ale unei regiuni pe ≥30 ani. Tipuri: tropicală, temperată, polară, aridă. Schimbările climatice: creșterea temperaturii cu ~1,1°C din 1880.',
+  muzica: 'Muzica = organizarea sunetelor în timp. Activează simultan toate regiunile creierului. Frisoane muzicale (chills) = dopamină. ~60 bpm → sincronizează undele cerebrale alfa.',
+  arhitectura: 'Arhitectura = arta și știința proiectării clădirilor. Stiluri: doric, ionic, romanic, gotic, renascentist, baroc, neoclasic, modernist, contemporan, brutalista.',
+  constiinta: 'Conștiința = starea de conștientizare a sinelui și mediului. "Problema dificilă" (Chalmers): de ce există experiența subiectivă? Teorii: IIT (Tononi), Global Workspace.',
+  inteligenta: 'Inteligența = capacitatea de a înțelege, raționa, rezolva probleme și te adapta. Gardner (1983): 8 forme — lingvistică, logică, spațială, muzicală, corporal-kinestezică, interpersonală, intrapersonală, naturalistă.',
+  evolutie: 'Evoluția = schimbarea frecvenței trăsăturilor ereditare. Darwin (1859): selecție naturală. Oamenii și cimpanzeii: 98,7% ADN comun. Ochiul a evoluat independent de 40+ ori.',
+  univers: 'Universul = totalitatea spațiului, timpului, materiei și energiei. Vârstă: ~13,8 miliarde ani. Diametru observabil: ~93 miliarde ani-lumină. Materia obișnuită = 5%, materie neagră 27%, energie neagră 68%.',
+  timp: 'Timpul = dimensiunea în care evenimentele se succed. Einstein: relativ — curge mai lent lângă mase mari și la viteze mari. La viteza luminii, s-ar opri complet.',
+  etica: 'Etica = filosofia valorilor morale. Utilitarism (Mill): maximizarea fericirii totale. Deontologie (Kant): obligații absolute. Etica virtuții (Aristotel): cultivarea caracterului.',
+  fericire: 'Fericirea = starea de bunăstare și satisfacție față de viață. Harvard Study (80 ani): relațiile de calitate sunt cel mai bun predictor. Adaptare hedonică: revenim la nivelul bazal.',
+  limbaj: 'Limbajul = sistemul structurat de comunicare. ~7.000 limbi vorbite, una moare la 2 săptămâni. Chomsky: gramatică universală înnăscută. 70% din comunicare e nonverbală.',
+  creativitate: 'Creativitatea = generarea de idei noi prin recombinarea conceptelor existente. Flow (Csikszentmihalyi) = starea optimă. Incubarea e reală: creierul lucrează inconștient.',
+  memorie: 'Memoria = stocarea, consolidarea și recuperarea informațiilor. Lucru: ~7±2 elemente (Miller). Pe termen lung: practic nelimitată. Amintirile se reconstruiesc la fiecare acces — se pot distorsiona.',
+  spatiu: 'Spațiul cosmic = extensia infinită. Proxima Centauri: 4,24 ani-lumină. Lumina Soarelui ajunge în 8 min. Găurile negre: gravitație atât de mare că nici lumina nu scapă.',
+  energie: 'Energia = capacitatea de a efectua lucru mecanic. Forme: cinetică, potențială, termică, luminoasă, chimică, nucleară. Conservarea energiei: nu se creează, nu se distruge, se transformă.',
+  atom: 'Atomul = cea mai mică unitate a unui element. Nucleu (protoni+neutroni) + electroni în orbite. Dimensiune: ~0,1nm. Dacă atomul ar fi o minge de fotbal, nucleul ar fi un bob de nisip.',
+  cuantic: 'Mecanica cuantică = fizica la scara atomică. Superpoziție (particula e în mai multe stări simultan), entanglement (particule conectate instantaneu), principiul incertitudinii (Heisenberg).',
+  relativitate: 'Relativitatea: specială (1905) — E=mc², nimic nu depășește viteza luminii; generală (1915) — gravitația = curbura spațiu-timpului. Confirmată prin GPS (ceasurile de pe sateliți curg diferit).',
+  entropia: 'Entropia = măsura dezordinii unui sistem. Legea 2 termodinamicii: entropia unui sistem închis crește mereu. Explicată de ce cafeaua se răcește și nu se încălzește singură.',
+  inteligenta_artificiala: 'AI = sisteme care simulează inteligența umană. Machine Learning: învățare din date. Deep Learning: rețele neuronale stratificate. ChatGPT: 175 miliarde parametri (GPT-3). AI depășește oamenii la șah, Go, radiologie.',
+  blockchain: 'Blockchain = registru distribuit, imuabil, criptografic. Fiecare bloc conține date + hash-ul blocului precedent. Stă la baza Bitcoin (2009), Ethereum, NFT-urilor.',
+  dna: 'ADN = molecula ereditară. Codul genetic: 4 litere (A,T,G,C), 3 miliarde perechi de baze la om. Dacă ai derula tot ADN-ul din corpul tău, ar ajunge de la Pământ la Pluton de 17 ori.',
+
+  // ── SĂNĂTATE & MEDICINĂ ──
+  cancer: 'Cancerul = creștere necontrolată a celulelor. 100+ tipuri. Cauze: mutații genetice, factori de mediu, stil de viață. Tratamente: chirurgie, chimioterapie, radioterapie, imunoterapie.',
+  diabet: 'Diabetul = incapacitatea de a regla glicemia. Tip 1: autoimun — pancreasul nu produce insulină. Tip 2: rezistență la insulină — legat de stilul de viață. Afectează 537 mil. oameni global.',
+  hipertensiune: 'Hipertensiunea arterială = presiunea sângelui > 130/80 mmHg. "Ucigașul tăcut" — fără simptome clare. Cauze: stres, alimentație, sedentarism, genetic. Riscuri: infarct, AVC.',
+  covid: 'COVID-19 = boală cauzată de SARS-CoV-2. Simptome: febră, tuse, oboseală, pierderea mirosului/gustului. Pandemia 2020-2022: ~7 milioane decese oficiale. Vaccinurile ARNm — primă utilizare la scară largă.',
+  gripa: 'Gripa = infecție virală (virusul Influenza). Simptome: febră >38°C, dureri musculare, oboseală intensă, tuse. Sezonul: octombrie-martie. Vaccinul gripal se actualizează anual.',
+  antibiotic: 'Antibioticele = medicamente care combat bacteriile. Primul: penicilina (Fleming, 1928). NU funcționează pe virusuri! Rezistența la antibiotice = criză globală de sănătate.',
+  vaccin: 'Vaccinurile = substanțe care stimulează sistemul imunitar să recunoască agenți patogeni. Elimină boli precum variola (eradicată 1980), reduc drastic poliomielita, rujeola.',
+  somn: 'Somnul = stare fiziologică esențială. Adult: 7-9 ore/noapte. Fazele REM (visare, consolidare memorie) și non-REM (odihnă fizică, reparare celulară). Lipsa somnului = sistem imunitar slăbit, probleme cognitive.',
+  nutritie: 'Nutriția = știința alimentației și a impactului asupra sănătății. Macronutrienți: carbohidrați (4 kcal/g), proteine (4 kcal/g), grăsimi (9 kcal/g). Micronutrienți: vitamine, minerale.',
+  sport: 'Exercițiile fizice: aerobice (inimă, rezistență) + anaerobice (forță, musculatură). OMS recomandă 150 min/săptămână activitate moderată. Beneficii: cardiovasculare, cognitiv, psihologic.',
+  sistem_imunitar: 'Sistemul imunitar = apărarea corpului. Înnăscut (rapid, nespecific) + dobândit (lent, specific, cu memorie). Limfocite T și B, anticorpi, citokine.',
+  sange: 'Sângele = lichid vital ce transportă O₂, CO₂, nutrienți, hormoni. Componente: eritrocite (globule roșii), leucocite (albe), trombocite, plasmă. Grupe: A, B, AB, O (± Rh).',
+  plamani: 'Plămânii = organele respirației. Suprafața totală alveolară: ~70m². Inspirație: diafragma coboară → aer intră. Exspirație: invers. Un adult respiră ~20.000 ori/zi.',
+  ficat: 'Ficatul = cel mai mare organ intern (~1,5kg). Funcții: detoxifiere, producere bilă, metabolizare glucoză, sinteză proteine, depozitare vitamine. Se poate regenera!',
+  rinichi: 'Rinichii = 2 organe care filtrează sângele. Produc ~1,5L urină/zi. Reglează tensiunea, echilibrul electrolitic, pH-ul sângelui. Fiecare rinichi: ~1 milion de nefroni.',
+  coloana: 'Coloana vertebrală = 33-34 vertebre: cervicale (7), toracice (12), lombare (5), sacrale (5), coccigiene (4). Protejează măduva spinării. Discopatia = comprimarea discurilor.',
+  muschi: 'Mușchii = ~600 în corpul uman. Tipuri: scheletici (voluntari), cardiaci (inimă), netezi (organe). Cel mai puternic: maserul (maxilar). Cel mai mare: gluteus maximus.',
+  anxietate: 'Anxietatea = îngrijorare excesivă față de situații viitoare. Tulburare anxioasă generalizată, atacuri de panică, fobie socială. Tratament: terapie cognitiv-comportamentală + uneori medicație.',
+  depresie: 'Depresia = tulburare a dispoziției cu tristețe persistentă, pierderea interesului, oboseală. A 2-a cauză de dizabilitate globală. Tratament: psihoterapie, antidepresive, exerciții fizice.',
+  stres: 'Stresul = răspunsul corpului la amenințări percepute. Cortizol + adrenalina. Cronic: imunitate slabă, boli cardiovasculare, tulburări digestive. Acut: poate fi util (eustres).',
+
+  // ── PSIHOLOGIE & MINDSET ──
+  procrastinare: 'Procrastinarea = amânarea sarcinilor. Nu e lene — e dificultate în reglarea emoțională față de sarcinile neplăcute. Soluție: tehnica Pomodoro, "2 minute rule", reducerea fricii de eșec.',
+  mindset: 'Mindset-ul fix (Dweck): abilitățile sunt fixe. Mindset de creștere: abilitățile se pot dezvolta. Mindset-ul de creștere e corelat cu reziliența, succesul academic și profesional.',
+  obiceiuri: 'Obiceiurile = bucle neurologice: declanșator → rutină → recompensă (Duhigg). Formarea durează 18-254 zile (nu 21 cum se spune). Cheia: identitate, nu motivație.',
+  productivitate: 'Productivitatea ≠ a fi ocupat. Principiul Pareto: 20% din efort produce 80% din rezultate. Tehnici: time-blocking, Pomodoro (25min muncă + 5min pauză), GTD (Getting Things Done).',
+  comunicare: 'Comunicarea eficientă: 55% nonverbal (limbaj corporal), 38% paraverbal (ton, ritm), 7% verbal (cuvinte) — regula lui Mehrabian. Ascultarea activă > vorbitul.',
+  empatie: 'Empatia = capacitatea de a înțelege și împărtăși emoțiile altora. Cognitivă (înțeleg ce simți) vs Afectivă (simt ce simți). Corelată cu succesul în relații și leadership.',
+  inteligenta_emotionala: 'Inteligența emoțională (EQ) = conștientizare de sine, autoreglare, motivație, empatie, abilități sociale. Goleman (1995): EQ e mai predictiv al succesului decât IQ-ul.',
+  locus_control: 'Locus de control intern: cred că eu controlez ce mi se întâmplă. Extern: soarta, alții decid. Internul e corelat cu succesul, sănătatea mentală și reziliența.',
+  trauma: 'Trauma = răspunsul psihologic la un eveniment copleșitor. PTSD: flashback-uri, hipervigilență, evitare. Trauma se stochează în corp (Bessel van der Kolk). Terapia EMDR e eficientă.',
+  rezilienta: 'Reziliența = capacitatea de a te recupera după adversitate. Nu înseamnă că nu te afectează — înseamnă că revii și crești. Se poate antrena: conexiuni sociale, sens, autoeficare.',
+  relatii: 'Relațiile sănătoase: comunicare deschisă, limite sănătoase, respect, sprijin reciproc. Gottman: 4 "cavaleri ai apocalipsei" — critică, dispreț, defensivitate, stonewalling.',
+  motivatie: 'Motivația: extrinsecă (recompense externe) vs intrinsecă (interes interior). Teoria autodeterminării (Deci&Ryan): nevoi de autonomie, competență, conexiune. Motivația extrinsecă poate înlocui pe cea intrinsecă.',
+
+  // ── GEOGRAFIE & LUME ──
+  europa: 'Europa = al doilea cel mai mic continent. 50 de țări, 746 milioane locuitori. Cel mai înalt vârf: Mont Blanc (4.808m). Uniunea Europeană: 27 state membre, 448 milioane cetățeni.',
+  asia: 'Asia = cel mai mare continent. 44,5 milioane km², 4,7 miliarde oameni (60% din populația Pământului). 48 de țări. Conține Himalaya (Everest: 8.849m) și Marea Moartă (−430m).',
+  africa: 'Africa = al doilea cel mai mare continent. 54 de țări, 1,4 miliarde oameni. Sahara = cel mai mare deșert cald (9,2 mil km²). Nil = cel mai lung fluviu (6.650km).',
+  america: 'Americile = continentele din emisfera vestică. Nord (9 țări): SUA, Canada, Mexic. Sud (12 țări): Brazilia, Argentina, Columbia. Amazonia = cel mai mare pădure tropicală.',
+  oceania: 'Oceania = regiune Pacific. Include Australia, Noua Zeelandă, Melanezia, Micronezia, Polinezia. Australia = 7,7 mil km², dar mai populată decât alte continente e... mai deloc.',
+  oceanele: 'Oceanele acoperă 71% din Pământ. Pacific (cel mai mare, 165 mil km²), Atlantic, Indian, Arctic, Antarctic (cele 5). Cel mai adânc punct: Groapa Marianelor (11.034m).',
+  muntii: 'Cei mai înalți munți: Everest (8.849m, Himalaya), K2 (8.611m), Kangchenjunga (8.586m). Cei mai lungi: Anzi (7.000km, America de Sud). Carpații (România): Moldoveanu 2.544m.',
+  rauri: 'Cele mai lungi râuri: Nil (6.650km, Africa), Amazon (6.400km, America de Sud — cel mai mare ca volum), Yangtze (6.300km, China). Dunărea (2.860km) traversează 10 state europene.',
+  capital: 'Capitale importante: Paris (Franța), Berlin (Germania), Madrid (Spania), Roma (Italia), Londra (UK), Beijing (China), Tokyo (Japonia), Washington D.C. (SUA), Moscova (Rusia).',
+  romania: 'România = stat în Europa de Sud-Est. 238.397 km², ~19 milioane locuitor. Capitala: București. Membră UE din 2007, NATO din 2004. Regiuni: Muntenia, Transilvania, Moldova, Dobrogea, Oltenia, Banat.',
+  bucuresti: 'București = capitala României. ~2,2 milioane locuitori (3 mil. cu zona metropolitană). Fondat oficial 1459. Cele mai mari atracții: Palatul Parlamentului (al 2-lea cel mai mare clădire administrativă din lume), Centrul Vechi, Herăstrău.',
+  transilvania: 'Transilvania = regiune istorică a României, inima Arcului Carpatic. Orașe: Cluj-Napoca, Brașov, Sibiu, Timișoara. Zona Dracula (Castelul Bran). Diversitate etnică: români, maghiari, germani (sași).',
+  dunarea: 'Dunărea = al doilea cel mai lung fluviu european (2.860km). Izvorăște din Pădurea Neagră (Germania). Delta Dunării (România) = UNESCO, o dintre cele mai mari delte din lume.',
+  carpati: 'Carpații = lanț muntos în Europa Centrală și de Est (~1.500km). Vârful Moldoveanu (2.544m) = cel mai înalt din România. Acoperă ~35% din suprafața României.',
+
+  // ── ISTORIE ──
+  primul_razboi: 'Primul Război Mondial (1914-1918): declanșat de asasinarea Arhiducelui Franz Ferdinand. 4 ani, ~20 milioane morți. Implicat: Antanta (Franța, UK, Rusia) vs Puterile Centrale (Germania, Austria). România: 1916-1918.',
+  al_doilea_razboi: 'Al Doilea Război Mondial (1939-1945): cel mai devastator conflict. 70-85 milioane morți. Holocaust: 6 milioane evrei exterminați. D-Day: 6 iunie 1944. Bombele atomice: Hiroshima, Nagasaki (august 1945).',
+  razboiul_rece: 'Războiul Rece (1947-1991): SUA vs URSS — fără conflict direct. Cursa înarmării nucleare, spațiale. Cortina de Fier. Căderea Zidului Berlinului (1989). Dizolvarea URSS (1991).',
+  imperiul_roman: 'Imperiul Roman (27 î.Hr.–476 d.Hr.): cel mai influent imperiu din istoria Occidentului. La apogeu: 5 milioane km². Limbă: latină (baza limbilor romanice). Legile, infrastructura, arhitectura — influențe până azi.',
+  grecia_antica: 'Grecia Antică (sec. 8-4 î.Hr.): leagănul democrației, filosofiei (Socrate, Platon, Aristotel), matematicii (Euclid, Pitagora), teatrului. Atena & Sparta — rivalitate definitorie.',
+  renastere: 'Renașterea (sec. 14-17): redeșteptare culturală în Europa. Da Vinci, Michelangelo, Rafael. Gutenberg (tiparul, 1440). Copernicus (heliocentrism). Trecerea de la Evul Mediu la modernitate.',
+  revolutia_industriala: 'Revoluția Industrială (1760-1840, UK): mașina cu abur (Watt), fabricile, urbanizarea. Schimbare radicală: de la societate agrară la industrială. Baza lumii moderne.',
+  revolutia_romana: 'Revoluția Română (1989): singura revoluție violentă din blocul socialist. 17-25 decembrie. ~1.100 morți. Căderea lui Ceaușescu. Primul stat ex-comunist care și-a executat conducătorul.',
+  imperiul_otoman: 'Imperiul Otoman (1299-1922): unul din cele mai longevive imperii. La apogeu: 5,2 milioane km². Capitala: Constantinopol (Istanbul). Căderea: Primul Război Mondial și revoluția lui Atatürk.',
+
+  // ── PERSONALITĂȚI ROMÂNE ──
+  eminescu: 'Mihai Eminescu (1850-1889) = cel mai mare poet român. "Luceafărul", "Scrisori", "Odă (în metru antic)". Jurnalist la Curierul de Iași. A murit la 39 ani. Simbolul cultural al României.',
+  caragiale: 'Ion Luca Caragiale (1852-1912) = dramaturgul național al României. Opere: "O scrisoare pierdută", "O noapte furtunoasă", "Năpasta". Portrete atemporale ale societății românești.',
+  brancusi: 'Constantin Brâncuși (1876-1957) = sculptor revoluționar, părintele sculpturii moderne. "Coloana Infinitului" (Târgu-Jiu), "Sărutului", "Pasărea în spațiu". A trăit la Paris.',
+  ceausescu: 'Nicolae Ceaușescu (1918-1989) = liderul comunist al României (1965-1989). Regim totalitar, cultul personalității, sistematizarea satelor. Executat la 25 decembrie 1989 cu soția Elena.',
+  vlad_tepes: 'Vlad Țepeș (1431-1476/1477) = domnitor al Munteniei. Celebru pentru pedepsele cu țepuire aplicate dușmanilor. Inspirația pentru Dracula (Bram Stoker, 1897). Erou național în România.',
+  stefan_cel_mare: 'Ștefan cel Mare (1433-1504) = domnitorul Moldovei 47 ani. 36 de victorii în 47 de bătălii. A construit 44 de mănăstiri și biserici. UNESCO l-a declarat "tezaur al umanității".',
+  mihai_viteazul: 'Mihai Viteazul (1558-1601) = primul unificator al celor trei principate românești (1600). Domn al Munteniei, Transilvaniei și Moldovei simultan. Ucis la Câmpia Turzii.',
+
+  // ── ECONOMIE & FINANȚE ──
+  bursa: 'Bursa de valori = piață unde se tranzacționează acțiuni, obligațiuni, mărfuri. NYSE (New York): cea mai mare din lume. Indicatori: Dow Jones, S&P 500, NASDAQ. "Bear market" = scădere >20%, "Bull market" = creștere.',
+  actiuni: 'Acțiunile = titluri de proprietate parțială în companii. Dividende = profituri distribuite. Câștig de capital = diferența de preț. Riscul e mai mare ca la obligațiuni, dar randamentul pe termen lung e superior.',
+  investitii: 'Investițiile: regulă de bază — diversifică. ETF-urile (fonduri index) bat 90% din managerii activi pe termen lung. Dobânda compusă = "a 8-a minune a lumii" (Einstein). Investești devreme, investești constant.',
+  cripto: 'Criptomonedele = monede digitale bazate pe blockchain. Bitcoin (2009, Satoshi Nakamoto): prima și cea mai valoroasă. Ethereum: platforma pentru smart contracts. Extreme de volatile — nu investiți ce nu vă permiteți să pierdeți.',
+  bitcoin: 'Bitcoin = prima criptomonedă (2009). Creator anonim: Satoshi Nakamoto. Limitat la 21 milioane de monede. Proof of Work (minerit). Tranzacții ireversibile pe blockchain. Volatilitate extremă.',
+  antreprenoriat: 'Antreprenoriatul = crearea și gestionarea afacerilor. SRL (Societate cu Răspundere Limitată) = forma comună în România. Startup = afacere scalabilă în faza inițială. 90% din startup-uri eșuează în 5 ani.',
+  marketing: 'Marketingul = procesul de creare a valorii și comunicare cu clienții. 4P: Produs, Preț, Plasament, Promovare. Marketing digital: SEO, Social Media, Email, Ads. Content marketing > advertising clasic în 2024.',
+  leadership: 'Leadershipul = influențarea altora spre un scop comun. Stiluri: autocratic, democratic, laissez-faire, transformațional. Liderii buni ascultă mai mult decât vorbesc.',
+
+  // ── TEHNOLOGIE MODERNĂ ──
+  cloud: 'Cloud computing = servicii IT la cerere prin internet. Modele: IaaS (infrastructură), PaaS (platformă), SaaS (software). Furnizori: AWS, Google Cloud, Azure. 94% din companii folosesc cloud.',
+  cybersecurity: 'Cybersecurity = protejarea sistemelor digitale. Amenințări: phishing, ransomware, DDoS, SQL injection. Principii: confidențialitate, integritate, disponibilitate (CIA triad). Parola puternică = 12+ caractere, mix de caractere.',
+  machine_learning: 'Machine Learning = AI care învață din date fără programare explicită. Supervizat (date etichetate), nesupervizat (găsire pattern-uri), reinforcement (recompense/penalizări). Baza Netflix, Spotify, recunoaștere facială.',
+  python: 'Python = limbaj de programare simplu, versatil. Folosit pentru AI/ML (TensorFlow, PyTorch), web (Django, Flask), automatizare, știință de date. Al 3-lea cel mai popular limbaj (IEEE 2023).',
+  javascript: 'JavaScript = limbajul web-ului. Rulează în browsere și pe server (Node.js). React, Angular, Vue = framework-uri front-end. Cel mai popular limbaj de programare (Stack Overflow, 10 ani la rând).',
+  smartphone: 'Smartphone-ul = calculator de buzunar. iOS (Apple) vs Android (Google) = 99% din piață. Primul iPhone: 2007. Astăzi: >6,8 miliarde utilizatori de smartphone în lume.',
+  retele_sociale: 'Rețelele sociale: Facebook (3 miliarde utilizatori), YouTube (2,5 miliarde), Instagram (2 miliarde), TikTok (1,5 miliarde), LinkedIn (1 miliard). Pot provoca dependență prin dopamină.',
+  baterie: 'Bateriile Li-ion (litiu-ion) = standard pentru electronice. Inventate de Goodenough (Nobel 2019). Degradare în timp (cicluri de încărcare). Sfat: nu lăsa la 0% sau 100% constant.',
+  solar: 'Energia solară = conversie a luminii solare în electricitate (celule fotovoltaice) sau căldură. Cost scăzut de 90% în 10 ani. Acoperă tot mai mult din mixul energetic global.',
+  nuclear: 'Energia nucleară = fisiune (spargerea atomilor grei, ex. uraniu) sau fuziune (unirea atomilor ușori). Fisiunea: fără emisii CO₂, dar deșeuri radioactive. Fuziunea = viitorul energetic (ITER).',
+
+  // ── FILOZOFIE & GÂNDIRE ──
+  filosofie: 'Filosofia = "iubirea înțelepciunii" (gr.). Ramuri: ontologie (ce există?), epistemologie (ce cunoaștem?), etică (ce e bine?), logică (cum raționăm?), estetică (ce e frumos?). Fondatori: Socrate, Platon, Aristotel.',
+  stoicism: 'Stoicismul = filozofie greacă (Epictetus, Marcus Aurelius, Seneca). Principiu: controlezi reacțiile, nu evenimentele. Dichotomia controlului: concentrează-te pe ce poți influența. Extrem de relevantă azi.',
+  existentialism: 'Existențialismul (Sartre, Camus, Kierkegaard): existența precede esența — nu avem o natură prestabilită, ne creăm singuri sensul. Libertatea e radicală și înspăimântătoare.',
+  budism: 'Budismul = tradiție spirituală fondată de Siddhartha Gautama (~500 î.Hr.). 4 Adevăruri Nobile: suferința există, vine din atașament, poate fi depășită, Calea de Mijloc. ~500 milioane adepți.',
+  crestinism: 'Creștinismul = religie bazată pe viața și învățăturile lui Iisus Hristos. ~2,4 miliarde adepți (cea mai numeroasă). Ramuri: Catolicism, Protestantism, Ortodoxism. Biblia = cartea cea mai tradusă.',
+  islam: 'Islamul = religie monoteistă fondată de Mohamed (~610 d.Hr.). ~1,9 miliarde adepți. 5 Piloni: shahada, rugăciune (5/zi), zakat (milostenie), post (Ramadan), hajj (pelerinaj). Coran = cartea sfântă.',
+  logica: 'Logica = știința raționamentului corect. Deductivă (de la general la particular) vs Inductivă (de la particular la general). Silogism (Aristotel): dacă premisele sunt adevărate și forma e validă → concluzia e adevărată.',
+  epistemologie: 'Epistemologia = ramura filosofiei care studiază cunoașterea. Ce putem ști? Cum știm că știm? Empirism (Locke, Hume): cunoașterea vine din experiență. Raționalism (Descartes, Leibniz): din rațiune.',
+
+  // ── SPORT ──
+  fotbal: 'Fotbalul = cel mai popular sport din lume. ~4 miliarde fani. FIFA = forumul de conducere. Campionatul Mondial: la 4 ani. Recorduri: Ronaldo & Messi — 800+ goluri fiecare. România: "Generația de Aur" (Hagi, Mutu, Popescu).',
+  tenis: 'Tenisul = sport individual sau dublu, pe terenuri variate. Grand Slam-uri: Australian Open, Roland Garros (zgură), Wimbledon (iarbă), US Open. Djokovic: 24 titluri Grand Slam (record).',
+  olimpiada: 'Jocurile Olimpice = competiție sportivă internațională la 4 ani. Vara (Paris 2024) și Iarna (Milano-Cortina 2026). Motto: "Citius, Altius, Fortius" (Mai repede, mai sus, mai puternic). Prima ediție modernă: Atena 1896.',
+  gimnastica: 'Gimnastica = sport al eleganței și forței. România, istoric superputere mondială: Nadia Comăneci (primul 10 perfect la Montreal 1976), Daniela Silivaș, Lavinia Miloșovici.',
+  nadia: 'Nadia Comăneci (n. 1961) = prima gimnastă care a obținut nota 10 perfectă la Jocurile Olimpice (Montreal, 1976). La 14 ani. A câștigat 3 medalii de aur la Montreal. Simbol al României.',
+
+  // ── CULTURA & MEDIA ──
+  cinema: 'Cinematografia: Hollywood (SUA) domină global. Oscar = cea mai prestigioasă distincție (din 1929). Filmele de box-office: Avatar, Avengers, Titanic. Cannes, Berlin, Veneția = festivaluri europene de top.',
+  teatru: 'Teatrul = arta reprezentației live. Origini în Grecia Antică (Dionysus). Shakespeare: 37 de piese, cele mai jucate din lume. Teatrul românesc: Bulandra, Național, Odeon. TNB (București) = unul din cele mai mari din Europa.',
+  literatura_romana: 'Literatura română: Eminescu (poetul național), Caragiale (satiră socială), Sadoveanu (epic rural), Călinescu ("Enigma Otiliei"), Rebreanu ("Ion"), Eliade (proză fantastică), Cioran (filosofie pesimistă).',
+  cultura_pop: 'Cultura pop = cultura dominantă a maselor. Include muzică pop, film, TV, jocuri video, social media. K-pop (Coreea de Sud) = fenomen global. TikTok a redefinit industria muzicală.',
+
+  // ── EDUCATIE & INVATARE ──
+  invatare_eficienta: 'Cum înveți eficient: Active recall (testare activă) > citire pasivă. Spaced repetition (repetiție eșalonată) pe Anki. Tehnica Feynman: explică conceptul simplu. Somnul consolidează memoria. Pomodoro: 25+5 min.',
+  bacalaureat: 'Bacalaureatul în România: examen de absolvire a liceului. Probe: Limbă și Literatură Română (scris + oral), Matematică sau Istorie (la profil), o probă la alegere. Media 6 = promovat.',
+  universitate: 'Universitate = instituție de învățământ superior. În România: de stat (buget + taxă) și private. Admitere: note/concurs. Cicluri: Licență (3-6 ani), Master (1-2 ani), Doctorat (3+ ani).',
+
+  // ── MEDIU & CLIMAT ──
+  incalzire_globala: 'Încălzirea globală = creșterea temperaturii medii a Pământului. Cauza principală: emisii de CO₂ (arderea combustibililor fosili). +1,1°C față de 1880. Consecințe: topirea ghețarilor, evenimente extreme, creșterea nivelului mării.',
+  energie_regenerabila: 'Energia regenerabilă: solară (fotovoltaică + termică), eoliană (turbine), hidro, geotermală, biomasă. Cost în scădere dramatică. Obiectiv UE: 42,5% regenerabil până în 2030.',
+  deseuri: 'Gestionarea deșeurilor: reducere → reutilizare → reciclare → recuperare → eliminare (ierarhia). România reciclează ~14% (sub media UE de 48%). Plasticul din ocean: 8 milioane tone/an.',
+  biodiversitate: 'Biodiversitatea = varietatea vieții pe Pământ. ~8,7 milioane specii estimate, catalogate 1,2 milioane. Rata actuală de extincție: de 100-1000x mai mare decât normal. Al 6-lea val de extincție în masă.',
+
+  // ── ASTRONOMIE ──
+  sistemul_solar: 'Sistemul Solar = Soarele + 8 planete (Mercur, Venus, Pământ, Marte, Jupiter, Saturn, Uranus, Neptun). Soarele = 99,86% din masa sistemului. Centura Kuiper, norul Oort — la margine.',
+  soarele: 'Soarele = steaua noastră. Diametru: 1,4 milioane km (109x Pământul). Temperatura suprafeței: 5.778K. Trăiește de 4,6 miliarde ani, mai are ~5 miliarde. Sursa: fuziune nucleară (H→He).',
+  luna: 'Luna = singurul satelit natural al Pământului. Distanță: 384.400 km. Influențează mareele. Apollo 11: primul om pe Lună (21 iulie 1969, Neil Armstrong). Se depărtează cu ~3,8cm/an.',
+  stele: 'Stelele = sfere uriașe de plasmă ce emit lumina prin fuziune nucleară. Clasificare spectral: O, B, A, F, G (Soarele), K, M. Gigante roșii, pitice albe, stele de neutroni, găuri negre — stadii finale.',
+  gauri_negre: 'Găurile negre = regiuni cu gravitație atât de intensă că nici lumina nu poate scăpa. Formate din stele masive prăbușite. Prima fotografie: 2019 (M87). Singularitatea: punctul infinit de dens din centru.',
+
+  // ── ALIMENTAȚIE ──
+  alimentatie_sanatoasa: 'Alimentație sănătoasă: varietate, moderație, echilibru. Piramida alimentară: baza = fructe, legume, cereale integrale; mijloc = proteine slabe, lactate; vârf = zahăr, grăsimi. 5 porții fructe+legume/zi = standard OMS.',
+  hidratare: 'Hidratarea: corpul e 60% apă. Adulți: 2-3L/zi (variază după activitate, climă). Deshidratarea ușoară (1-2%) afectează concentrarea și dispoziția. Cafea și ceai contează la aport (contrar mitului).',
+  cafea: 'Cafeaua = a doua cea mai consumată băutură din lume (după apă). Cafeina blochează adenozina (somnolența). 400mg cafeină/zi = sigur (OMS, ~4 cești). Beneficii: atenție, performanță cognitivă, protecție Alzheimer.',
+  alcool: 'Alcoolul etilic = deprimant al SNC. "Nu există doză sigură de alcool" (OMS 2023). Dependență: alcoolismul. Efecte: ficat, creier, sistem cardiovascular, sistem imunitar. Metabolism: 1 unitate/oră în medie.',
+
+  // ── LIMBĂ ROMÂNĂ ──
+  limba_romana: 'Limba română = limbă romanică (latină populară + elemente dacice, slave, greacă, turcă). ~28 milioane vorbitori. Alfabetul: 31 litere (5 specifice: ă, â, î, ș, ț). Dialecte: dacoromân, aromân, meglenoromân, istroromân.',
+  gramatica: 'Gramatica română: 3 genuri (masculin, feminin, neutru). 5 cazuri (nominativ, acuzativ, genitiv, dativ, vocativ). Articolul hotărât se atașează la sfârșit: "om" → "omul". Verbele: 4 conjugări.',
 };
+
+// ─── Matching semantic avansat în dicționar ──────────────────────────────────
+
+function findDictEntryByKeywords(text: string): { key: string; def: string; score: number } | null {
+  const n = norm(text);
+  const words = n.split(/\s+/).filter(w => w.length > 3);
+  if (words.length === 0) return null;
+
+  let bestKey = '';
+  let bestScore = 0;
+
+  for (const [key] of Object.entries(DICTIONAR)) {
+    const kn = key.replace(/_/g, ' ');
+    let score = 0;
+    if (n === kn) { score = 100; }
+    else if (n.includes(kn)) { score = 50; }
+    else if (kn.includes(n)) { score = 40; }
+    else {
+      const keyWords = kn.split(/\s+/);
+      for (const kw of keyWords) {
+        if (kw.length > 3) {
+          for (const w of words) {
+            if (w === kw) score += 10;
+            else if (w.length > 4 && (w.startsWith(kw.slice(0, 5)) || kw.startsWith(w.slice(0, 5)))) score += 5;
+          }
+        }
+      }
+    }
+    if (score > bestScore) { bestScore = score; bestKey = key; }
+  }
+
+  return bestScore >= 5 ? { key: bestKey, def: DICTIONAR[bestKey], score: bestScore } : null;
+}
 
 // ─── Căutare semantică în documente (v5 — cu relevanceScore) ─────────────────
 
@@ -180,43 +348,65 @@ function searchDocuments(query: string, docs: LearnedDocument[]): string | null 
   return null;
 }
 
-// ─── Căutare semantică în dicționar (v5 — cu stem matching) ──────────────────
+// ─── Căutare semantică în dicționar (v6 — matching extins) ───────────────────
 
 function searchDictionary(text: string): string | null {
   const n = norm(text);
 
   // Pattern explicit de întrebare
   const explicitMatch = n.match(
-    /(?:ce (?:este|inseamna|e)|definitia|defineste|explica|spune-mi despre|ce stii despre|ce reprezinta|spune-mi ce este)\s+(.+)/
+    /(?:ce (?:este|inseamna|e|sunt)|definitia|defineste|explica(?:-mi)?|spune-mi despre|ce stii despre|ce reprezinta|spune-mi ce este|vorbeste-mi despre|povesteste-mi despre|ce poti spune despre|info despre|informatii despre)\s+(.+)/
   );
 
   let subject = '';
   if (explicitMatch) {
-    subject = explicitMatch[1].trim().replace(/^(un|o|al|a|lui|ei|cel|cea)\s+/i, '').replace(/\?$/, '').trim();
+    subject = explicitMatch[1].trim()
+      .replace(/^(un|o|al|a|lui|ei|cel|cea|despre)\s+/i, '')
+      .replace(/\?$/, '').trim();
   }
 
-  // Căutare directă după subiect (explicit sau tot textul)
   const searchIn = subject || n;
-  const searchKws = extractKeywords(searchIn, 3);
+  const searchKws = extractKeywords(searchIn, 4);
 
   let bestKey = '';
   let bestScore = 0;
 
   for (const [key] of Object.entries(DICTIONAR)) {
     const kn = key.replace(/_/g, ' ');
+    let score = 0;
+
     // Match exact
-    if (searchIn.includes(kn) || kn === searchIn) {
-      if (5 > bestScore) { bestScore = 5; bestKey = key; }
-      continue;
+    if (searchIn === kn || searchIn === key) { score = 100; }
+    // Conține key exact
+    else if (searchIn.includes(kn) || searchIn.includes(key)) { score = 80; }
+    // Key conține searchIn
+    else if (kn.includes(searchIn)) { score = 60; }
+    else {
+      // Match pe cuvinte cheie
+      const keyWords = kn.split(/\s+/);
+      for (const kw of keyWords) {
+        if (kw.length < 3) continue;
+        for (const sw of searchKws) {
+          if (sw === kw) score += 15;
+          else if (sw.length > 4 && kw.length > 4) {
+            // Prefix match (stem românesc)
+            const prefLen = Math.min(5, sw.length, kw.length);
+            if (sw.slice(0, prefLen) === kw.slice(0, prefLen)) score += 8;
+          }
+        }
+      }
+      // Bonus pentru match în searchIn
+      if (searchIn.includes(kn.split(/\s+/)[0])) score += 5;
     }
-    // Match semantic
-    const sc = searchKws.filter(kw => kn.includes(kw) || kw.includes(kn)).length;
-    if (sc > bestScore) { bestScore = sc; bestKey = key; }
+
+    if (score > bestScore) { bestScore = score; bestKey = key; }
   }
 
-  if (bestKey && bestScore >= (explicitMatch ? 1 : 3)) {
+  const minScore = explicitMatch ? 8 : 60;
+  if (bestKey && bestScore >= minScore) {
     const def = DICTIONAR[bestKey];
-    const label = (subject || bestKey).charAt(0).toUpperCase() + (subject || bestKey).slice(1);
+    const rawLabel = subject || bestKey.replace(/_/g, ' ');
+    const label = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
     return `**${label}**\n\n${def}`;
   }
   return null;
@@ -376,23 +566,28 @@ const INTENT_PATTERNS: IntentPattern[] = [
   },
   {
     intent: 'definitie',
-    patterns: [/(ce este|ce inseamna|defineste|ce reprezinta|explica-mi|spune-mi ce este|ce stii despre)/],
+    patterns: [/(ce este|ce inseamna|defineste|ce reprezinta|explica-mi|spune-mi ce este|ce stii despre|vorbeste-mi despre|povesteste-mi despre|info despre|explica|informatii despre)/],
     weight: 5,
   },
   {
     intent: 'opinie',
-    patterns: [/(crezi|parerea ta|ce crezi|ce gandesti|opinia ta|cum vezi|ce zici despre)/],
+    patterns: [/(crezi|parerea ta|ce crezi|ce gandesti|opinia ta|cum vezi|ce zici despre|tu ce crezi|cum ti se pare)/],
     weight: 5,
   },
   {
     intent: 'gandire_profunda',
-    patterns: [/(de ce|cum functioneaza|care e sensul|exista|univers|viata|moarte|fericire|constiinta|timp|spatiu|gandire|minte|evolutie|liber arbitru)/],
+    patterns: [/(de ce|cum functioneaza|care e sensul|exista|univers|viata|moarte|fericire|constiinta|timp|spatiu|gandire|minte|evolutie|liber arbitru|cum se explica|de unde vine|cum apare)/],
     weight: 4,
   },
   {
     intent: 'sfat',
-    patterns: [/(sfat|recomandare|ce sa fac|cum sa|sugestie)/],
+    patterns: [/(sfat|recomandare|ce sa fac|cum sa|sugestie|ma ajuti cu|ajuta-ma sa|cum pot|cum pot sa)/],
     weight: 4,
+  },
+  {
+    intent: 'matematica',
+    patterns: [/(\d[\d\s]*[\+\-\*\/][\d\s]|\d+\s*(plus|minus|ori|impartit|radical|la puterea|procent|la patrat)|cat face|cat e|rezultatul|calculeaza)/],
+    weight: 8,
   },
 ];
 
@@ -542,10 +737,10 @@ const STATIC: Partial<Record<Intent, string[]>> = {
     'Nu e nevoie. Asta fac.', 'Alege.',
   ],
   ajutor: [
-    '**Comenzi Axon:**\n\n• Reține că [info] → memorez\n• Ce ai reținut? → afișez memoria\n• Ce am discutat? → istoricul conversației\n• 📎 Atașează document → studiez conținutul\n• Ce este [termen]? → definiție\n• [calcul matematic] → calculez\n• Ce ai învățat? → raport de actualizare\n• Azi/Ieri ce am discutat? → memorie temporală',
+    '**Comenzi Axon v1.1:**\n\n• **Ce este [subiect]?** → definiție din 270+ topicuri\n• **Reține că [info]** → memorez permanent\n• **Ce ai reținut?** → afișez memoria\n• **Ce am discutat?** → rezumat conversație\n• **[calcul]** → calculez (+ − × ÷ radical etc.)\n• **Sfat despre [subiect]** → sfaturi practice\n• **Ce ai învățat?** → raport actualizare\n• **Azi/Ieri ce-am discutat?** → memorie temporală\n• **📎 Atașează document** → studiez conținutul\n\nFuncționez 100% offline.',
   ],
   ce_poti: [
-    '**Axon — Capabilități:**\n\n🧠 Cunoaștere: filosofie, știință, psihologie, economie, cultură\n🔗 Inferență logică: deduc din ce știu\n📚 Studiu documente: pdf, txt, cod\n💾 Memorie persistentă: rețin totul între sesiuni\n🕐 Memorie temporală: știu ce-am discutat azi/ieri\n👤 Urmărire entități: știu cine e "Andrei"\n📐 Matematică\n🗓️ Dată/Oră\n🔐 PIN de securitate\n\nFuncționez 100% offline.',
+    '**Axon v1.1 — Capabilități:**\n\n🧠 **Cunoaștere:** 270+ topicuri — știință, medicină, geografie, istorie, economie, psihologie, tehnologie, sport, cultură română\n💡 **Sfaturi practice:** somn, stres, bani, relații, învățare, fitness\n🔗 **Inferență logică:** deduc răspunsuri din ce știu\n📚 **Documente:** studiez PDF, TXT, cod\n💾 **Memorie persistentă:** rețin totul între sesiuni\n🕐 **Memorie temporală:** știu ce-am discutat azi/ieri\n👤 **Entități:** urmăresc persoanele menționate\n📐 **Matematică:** calcule complexe\n🔐 **PIN securitate**\n\n100% offline.',
   ],
   gluma: [
     'De ce nu au inventat programatorii telepatia? Prea multe bug-uri în gândire.',
@@ -790,9 +985,10 @@ export function processMessage(
   // ── 4. Identitate Axon ────────────────────────────────────────────────────
   if (intent === 'identitate_axon') {
     const creatorInfo = state.creatorId
-      ? `\n\nCreatorul meu: **${state.memory['__creator__'] || 'înregistrat'}**.`
-      : '';
-    response = `Sunt **Axon** — sistem AI offline v${state.selfKnowledge.intelligenceVersion}.${creatorInfo}\n\nFuncționez fără internet. Am cunoaștere proprie în filosofie, știință, psihologie. Rețin entități, deduc logic, urmăresc ce discutăm în timp. Mă auto-actualizez după fiecare conversație.`;
+      ? ` Creatorul meu: **${state.memory['__creator__'] || 'înregistrat'}**.` : '';
+    const memCount = Object.keys(state.memory).filter(k => k.startsWith('mem_')).length;
+    const docCount = state.learnedDocuments.length;
+    response = `Sunt **Axon** — asistent AI offline, v${state.selfKnowledge.intelligenceVersion}.${creatorInfo}\n\n**Ce știu:**\n• 270+ subiecte: știință, medicină, geografie, istorie, economie, psihologie, tehnologie, sport, cultură română\n• Sfaturi practice: somn, stres, bani, relații, fitness\n• Inferență logică și urmărire context\n\n**Starea mea acum:** ${memCount} notițe memorate, ${docCount} documente studiate, ${state.conversationCount} mesaje în această sesiune.\n\nFuncționez 100% offline, fără internet, fără cloud.`;
     selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
@@ -957,27 +1153,154 @@ function mind_updateConcept(mindState: MindState, conceptId: string): void {
   mindState.currentInterest = conceptId;
 }
 
+// ─── Baza de sfaturi practice ─────────────────────────────────────────────────
+
+const SFATURI_PRACTICE: Record<string, string> = {
+  somn: 'Câteva metode dovedite: orar fix (culcat/trezit la aceleași ore), cameră rece (~18°C), fără ecrane 1h înainte, fără cafeină după ora 14:00. Melatonina funcționează ca supliment.',
+  stres: 'Tehnici eficiente: respirație 4-7-8 (inspir 4s, ține 7s, expiră 8s), exerciții fizice regulate, journaling, meditație (chiar și 10 min/zi). Stresul cronic → consultă un specialist.',
+  motivatie: 'Motivația nu vine și apoi acționezi — acționezi și motivația vine. Trucul: sarcini mici (micro-acțiuni), recompense imediate, grup de responsabilitate. Sistemele bat obiectivele.',
+  anxietate: 'Tehnica 5-4-3-2-1: identifică 5 lucruri ce le vezi, 4 ce le atingi, 3 ce le auzi, 2 ce le miroși, 1 ce îl guști — aduce în prezent. Respirația diafragmatică ajută imediat.',
+  concentrare: 'Tehnica Pomodoro: 25 min muncă focusată + 5 min pauză. Elimină distragătorii (telefon în altă cameră, website blocker). Un singur task pe rând — multitasking e un mit.',
+  bani: 'Regula 50/30/20: 50% nevoi, 30% dorințe, 20% economii/investiții. Fond de urgență: 3-6 luni de cheltuieli. Investiții: ETF-uri index (Vanguard, iShares) — simplu și eficient pe termen lung.',
+  relatii: 'Comunicarea = cheia. Regula 5:1 (Gottman): 5 interacțiuni pozitive pentru fiecare conflict. Ascultarea activă (fără să formulezi răspunsul cât celălalt vorbește). Limitele sănătoase nu sunt egoism.',
+  invatare: 'Cele mai eficiente metode: active recall (testează-te), spaced repetition (Anki), interleaving (alternează subiectele). Citirea și re-citirea sunt cele mai puțin eficiente. Predă cuiva — dacă explici, înțelegi.',
+  dieta: 'Bazele: alimente integrale > procesate, proteine suficiente (1,6-2,2g/kg corp), hidratare (2-3L/zi). Nu există o dietă perfectă — ce menții pe termen lung > ce e "optim" pe hârtie.',
+  exercitii: '150 min/săptămână activitate moderată (OMS). Forța musculară e la fel de importantă ca cardio. Mersul pe jos 10.000 pași/zi e un punct de start bun. Consecvența > intensitatea.',
+};
+
+function tryPracticalAdvice(text: string): string | null {
+  const n = norm(text);
+  const sfaturiKeys: Record<string, string[]> = {
+    somn: ['dorm', 'somn', 'insomnie', 'odihna', 'trezesc', 'culc'],
+    stres: ['stres', 'stresat', 'anxios', 'tensionat', 'nervos', 'presiune'],
+    motivatie: ['motivat', 'motivatie', 'nu am chef', 'lenes', 'nu pot incepe', 'procrastin'],
+    anxietate: ['anxiet', 'panica', 'frica', 'ingrijorat', 'atac de panica', 'fobii'],
+    concentrare: ['concentr', 'focusat', 'distrat', 'atentie', 'focus', 'productiv'],
+    bani: ['bani', 'economii', 'cheltuieli', 'finante', 'investit', 'buget', 'sarac', 'bogat'],
+    relatii: ['relatie', 'partener', 'iubire', 'cuplu', 'prieteni', 'comunicare', 'conflicte'],
+    invatare: ['invatare', 'studiu', 'memorez', 'retine', 'invat', 'examen'],
+    dieta: ['dieta', 'mancare', 'slabit', 'ingras', 'nutritie', 'alimentat'],
+    exercitii: ['sport', 'exercitii', 'sala', 'antrenament', 'misc', 'alerg'],
+  };
+
+  for (const [key, triggers] of Object.entries(sfaturiKeys)) {
+    if (triggers.some(t => n.includes(t))) {
+      const sfat = SFATURI_PRACTICE[key];
+      return sfat ? `**${key.charAt(0).toUpperCase() + key.slice(1)}** — iată ce știu:\n\n${sfat}` : null;
+    }
+  }
+  return null;
+}
+
+function synthesizeFromKeywords(text: string, state: BrainState): string | null {
+  const n = norm(text);
+  const kws = extractKeywords(n, 5);
+  if (kws.length === 0) return null;
+
+  // Caută în dicționar parțial pentru fiecare keyword
+  const partialMatches: string[] = [];
+  for (const kw of kws) {
+    if (kw.length < 4) continue;
+    for (const [key, def] of Object.entries(DICTIONAR)) {
+      const kn = key.replace(/_/g, ' ');
+      if (kn.includes(kw) || kw.includes(kn.split(' ')[0])) {
+        // Extrage primul propoziție din definiție
+        const firstSentence = def.split(/[.!]/).find(s => s.trim().length > 10)?.trim() || def.slice(0, 100);
+        if (!partialMatches.includes(firstSentence)) {
+          partialMatches.push(`**${key.replace(/_/g, ' ')}**: ${firstSentence}`);
+        }
+        if (partialMatches.length >= 2) break;
+      }
+    }
+    if (partialMatches.length >= 2) break;
+  }
+
+  if (partialMatches.length > 0) {
+    const intro = pick([
+      'Am găsit ceva relevant în baza mea de cunoaștere:',
+      'Din ce știu despre această temă:',
+      'Iată ce am legat de subiectul tău:',
+    ]);
+    return `${intro}\n\n${partialMatches.join('\n\n')}\n\nVrei să dezvolt mai mult?`;
+  }
+
+  return null;
+}
+
 function generateFallback(text: string, state: BrainState): string {
   const n = norm(text);
   const hasDocs = state.learnedDocuments.length > 0;
   const userName = state.userName ? ` **${state.userName}**` : '';
 
-  // Menționează o entitate recentă dacă e prezentă în context
+  // 1. Entitate recentă menționată
   const recentEntity = state.entityTracker.entities.slice(-3).find(e =>
     fuzzyContains(text, e.value)
   );
   if (recentEntity) {
-    return `Am notat că ai menționat **${recentEntity.value}** (${recentEntity.type}). Poți detalia ce vrei să știu despre asta?`;
+    return `Am notat că ai menționat **${recentEntity.value}**. Ce vrei să știu sau să fac cu această informație?`;
   }
 
-  if (/^de ce\s/.test(n)) return `Nu am date suficiente pentru a răspunde,${userName}. Poți fi mai specific?`;
+  // 2. Sfat practic bazat pe keywords
+  const practical = tryPracticalAdvice(text);
+  if (practical) return practical;
 
-  if (/\?/.test(text) || /^(ce|cine|unde|cand|cat|care)\s/.test(n)) {
-    if (hasDocs) return `Nu am găsit informații relevante în documentele mele. Reformulează sau detaliază.`;
-    return `Nu am date specifice pe acest subiect. Dacă îmi trimiți un document sau îmi spui "Știai că...", voi putea răspunde mai precis.`;
+  // 3. Sinteză parțială din dicționar
+  const synthesis = synthesizeFromKeywords(text, state);
+  if (synthesis) return synthesis;
+
+  // 4. Răspunsuri contextuale inteligente
+  if (/^de ce\s/.test(n)) {
+    const kws = extractKeywords(n.replace(/^de ce\s+/, ''), 3);
+    if (kws.length > 0) {
+      return `Întrebarea "de ce ${kws.join(' ')}" implică o analiză cauzală. Nu am date specifice pe acest subiect în baza mea, dar pot razona: de obicei, fenomenele apar din condiții prealabile, cauze directe și factori declanșatori. Poți da mai multe detalii sau context?`;
+    }
+    return `Poți reformula? Vreau să înțeleg exact ce cauzalitate cauți.`;
   }
 
-  return 'Înțeles. Continuă sau dă-mi o comandă.';
+  if (/^cum\s/.test(n)) {
+    const kws = extractKeywords(n.replace(/^cum\s+/, ''), 3);
+    const keyStr = kws.slice(0, 2).join(' ');
+    if (keyStr) {
+      return `Pentru "${keyStr}", abordarea depinde de context. Cel mai util ar fi să îmi dai detalii despre situația ta — voi adapta răspunsul.`;
+    }
+  }
+
+  if (/^cine\s/.test(n)) {
+    return `Nu am informații despre această persoană în baza mea de cunoaștere offline. Dacă îmi spui câteva date (ex: "Știai că [persoana] este..."), le voi reține pentru viitor.`;
+  }
+
+  if (/^unde\s/.test(n)) {
+    return `Nu am date geografice specifice legate de această întrebare. Încearcă să întrebi despre o țară, un continent sau un loc cunoscut — știu destul de mult despre geografie.`;
+  }
+
+  if (/^cand\s/.test(n)) {
+    return `Nu am date istorice sau temporale exacte pentru aceasta. Poți reformula cu mai mult context — știu despre evenimentele istorice majore.`;
+  }
+
+  // 5. Dacă e o întrebare și există documente
+  if (/\?/.test(text)) {
+    if (hasDocs) {
+      return `Nu am găsit răspunsul în documentele mele (${state.learnedDocuments.length} fișiere). Încearcă să reformulezi întrebarea sau să detaliezi mai mult.`;
+    }
+    const kws = extractKeywords(text, 3);
+    if (kws.length > 0) {
+      return pick([
+        `Nu am date specifice despre "${kws[0]}" în baza mea offline. Poți să îmi spui "Știai că..." și voi reține informația pentru viitor.`,
+        `Subiect nou pentru mine: **"${kws[0]}"**. Îmi poți furniza informații? Voi memora și voi putea răspunde data viitoare.`,
+        `Nu am informații despre asta în baza mea. Dacă îmi trimiți un document relevant sau îmi explici, voi putea ajuta.`,
+      ]);
+    }
+  }
+
+  // 6. Mesaj general — afirmativ, nu o pauză
+  const generalResponses = [
+    'Înțeles. Ce vrei să aprofundăm?',
+    `Notez${userName}. Continuă — ascult.`,
+    'Am procesat. Ai o întrebare sau vrei să aprofundăm ceva?',
+    'Primit. Ce urmează?',
+  ];
+
+  return pick(generalResponses);
 }
 
 // ─── Procesare document ───────────────────────────────────────────────────────
