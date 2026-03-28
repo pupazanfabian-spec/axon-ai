@@ -18,6 +18,7 @@ import ChatBubble from '@/components/ChatBubble';
 import ThinkingIndicator from '@/components/ThinkingIndicator';
 import QuickActions from '@/components/QuickActions';
 import MemoryModal from '@/components/MemoryModal';
+import FileUploadModal from '@/components/FileUploadModal';
 import { useBrain } from '@/context/BrainContext';
 import { Message } from '@/engine/brain';
 import Colors from '@/constants/colors';
@@ -25,40 +26,45 @@ import Colors from '@/constants/colors';
 const { colors } = Colors;
 
 export default function ChatScreen() {
-  const { messages, isThinking, brainState, sendMessage, clearConversation } = useBrain();
+  const {
+    messages, isThinking, brainState,
+    sendMessage, clearConversation, addDocument, removeDocument,
+  } = useBrain();
+
   const [inputText, setInputText] = useState('');
   const [showMemory, setShowMemory] = useState(false);
-  const [showQuickActions, setShowQuickActions] = useState(true);
+  const [showFiles, setShowFiles] = useState(false);
+  const [showQuick, setShowQuick] = useState(true);
   const flatListRef = useRef<FlatList<Message>>(null);
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
 
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 120);
+  }, []);
+
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
-    if (!text) return;
+    if (!text || isThinking) return;
     setInputText('');
-    setShowQuickActions(false);
+    setShowQuick(false);
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     await sendMessage(text);
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  }, [inputText, sendMessage]);
+    scrollToBottom();
+  }, [inputText, isThinking, sendMessage, scrollToBottom]);
 
   const handleQuickAction = useCallback((text: string) => {
-    setShowQuickActions(false);
+    setShowQuick(false);
     sendMessage(text);
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  }, [sendMessage]);
+    scrollToBottom();
+  }, [sendMessage, scrollToBottom]);
 
   const handleClear = useCallback(() => {
     setShowMemory(false);
     clearConversation();
-    setShowQuickActions(true);
+    setShowQuick(true);
   }, [clearConversation]);
 
   const renderItem = useCallback(({ item, index }: { item: Message; index: number }) => (
@@ -70,6 +76,8 @@ export default function ChatScreen() {
   const topInset = isWeb ? 67 : insets.top;
   const bottomInset = isWeb ? 34 : 0;
 
+  const docCount = brainState.learnedDocuments.length;
+
   return (
     <View style={[styles.container, { paddingTop: topInset }]}>
       {/* Header */}
@@ -78,26 +86,29 @@ export default function ChatScreen() {
           <View style={styles.statusDot} />
           <View>
             <Text style={styles.headerTitle}>Axon</Text>
-            <Text style={styles.headerSub}>AI Offline • Activ</Text>
+            <Text style={styles.headerSub}>
+              {docCount > 0 ? `${docCount} doc. studiat${docCount !== 1 ? 'e' : ''} • Offline` : 'AI Offline • Activ'}
+            </Text>
           </View>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => setShowMemory(true)}
-          >
-            <Feather name="cpu" size={20} color={colors.textSecondary} />
+          <TouchableOpacity style={styles.headerBtn} onPress={() => setShowFiles(true)}>
+            <View>
+              <Feather name="paperclip" size={20} color={docCount > 0 ? colors.primary : colors.textSecondary} />
+              {docCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{docCount}</Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={handleClear}
-          >
-            <Feather name="refresh-cw" size={20} color={colors.textSecondary} />
+          <TouchableOpacity style={styles.headerBtn} onPress={() => setShowMemory(true)}>
+            <Feather name="cpu" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Messages */}
+      {/* Messages + Input */}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior="padding"
@@ -108,22 +119,29 @@ export default function ChatScreen() {
           data={messages}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          contentContainerStyle={[styles.messageList, { paddingBottom: 8 }]}
+          contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
-          scrollEnabled={messages.length > 0}
+          scrollEnabled={!!messages.length}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
           ListFooterComponent={isThinking ? <ThinkingIndicator /> : null}
         />
 
         {/* Quick Actions */}
-        {showQuickActions && !isThinking && (
+        {showQuick && !isThinking && (
           <QuickActions onPress={handleQuickAction} />
         )}
 
-        {/* Input */}
+        {/* Input Bar */}
         <View style={[styles.inputContainer, { paddingBottom: bottomInset + 8 }]}>
+          <TouchableOpacity
+            style={styles.attachBtn}
+            onPress={() => setShowFiles(true)}
+          >
+            <Feather name="paperclip" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+
           <TextInput
             style={styles.input}
             value={inputText}
@@ -131,13 +149,14 @@ export default function ChatScreen() {
             placeholder="Scrie un mesaj..."
             placeholderTextColor={colors.textMuted}
             multiline
-            maxLength={500}
+            maxLength={1000}
             onSubmitEditing={handleSend}
             returnKeyType="send"
             blurOnSubmit={false}
           />
+
           <TouchableOpacity
-            style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, (!inputText.trim() || isThinking) && styles.sendBtnDisabled]}
             onPress={handleSend}
             disabled={!inputText.trim() || isThinking}
             activeOpacity={0.8}
@@ -145,30 +164,34 @@ export default function ChatScreen() {
             <Feather
               name="send"
               size={18}
-              color={inputText.trim() ? '#fff' : colors.textMuted}
+              color={inputText.trim() && !isThinking ? '#fff' : colors.textMuted}
             />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
 
+      {/* Modals */}
       <MemoryModal
         visible={showMemory}
         brainState={brainState}
         onClose={() => setShowMemory(false)}
         onClear={handleClear}
       />
+
+      <FileUploadModal
+        visible={showFiles}
+        documents={brainState.learnedDocuments}
+        onClose={() => setShowFiles(false)}
+        onAddDocument={addDocument}
+        onRemoveDocument={removeDocument}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  flex: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -179,11 +202,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     backgroundColor: colors.surface,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   statusDot: {
     width: 10,
     height: 10,
@@ -194,36 +213,44 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 4,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter_700Bold',
-    color: colors.text,
-  },
-  headerSub: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    color: colors.success,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  headerBtn: {
-    padding: 8,
+  headerTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: colors.text },
+  headerSub: { fontSize: 11, fontFamily: 'Inter_400Regular', color: colors.success },
+  headerRight: { flexDirection: 'row', gap: 4 },
+  headerBtn: { padding: 8, borderRadius: 8 },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -6,
+    backgroundColor: colors.primary,
     borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
   },
-  messageList: {
-    paddingTop: 12,
-  },
+  badgeText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  messageList: { paddingTop: 12, paddingBottom: 8 },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingTop: 10,
-    gap: 8,
+    gap: 6,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  attachBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   input: {
     flex: 1,
@@ -247,7 +274,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 2,
   },
-  sendBtnDisabled: {
-    backgroundColor: colors.surfaceHigh,
-  },
+  sendBtnDisabled: { backgroundColor: colors.surfaceHigh },
 });
