@@ -30,7 +30,7 @@ const INITIAL_STATE: BrainState = {
 const WELCOME: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: 'Salut! Sunt **Axon v2**, asistentul tău AI offline. 🧠\n\n**Ce e nou:**\n📄 Trimite-mi fișiere text și le voi studia\n🧠 Memorie persistentă — nu uit între sesiuni\n💬 Răspunsuri mai variate și contextuale\n\nApasă **📎** pentru a-mi trimite un document!',
+  content: 'Salut! Sunt **Axon**, asistentul tău AI offline. 🧠\n\nFuncționez complet local — fără internet, fără chei API.\n\n**Ce pot face:**\n📖 Dicționar român integrat — "Ce este fotosinteza?"\n📄 Studiez fișiere — apasă 📎 și trimite documente\n🧠 Memorez informații — "Reține că..."\n🧮 Calcule matematice\n📅 Dată și oră exactă\n\nCum te cheamă?',
   timestamp: new Date(),
 };
 

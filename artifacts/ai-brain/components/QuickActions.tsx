@@ -12,12 +12,14 @@ import Colors from '@/constants/colors';
 const { colors } = Colors;
 
 const QUICK_ACTIONS = [
+  { label: 'Cum te cheamă?', icon: '🤖' },
+  { label: 'Ce este fotosinteza?', icon: '🌱' },
   { label: 'Ce oră e?', icon: '🕐' },
-  { label: 'Ce dată e?', icon: '📅' },
-  { label: '12 × 15', icon: '🧮' },
+  { label: '144 / 12', icon: '🧮' },
   { label: 'Spune-mi o glumă', icon: '😄' },
+  { label: 'Ce poți face?', icon: '💡' },
   { label: 'Motivează-mă', icon: '💪' },
-  { label: 'Ce poți face?', icon: '🤖' },
+  { label: 'Ce este ADN-ul?', icon: '🔬' },
 ];
 
 interface Props {
