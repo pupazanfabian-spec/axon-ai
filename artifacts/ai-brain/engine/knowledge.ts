@@ -289,23 +289,36 @@ export const DOMAIN_CONNECTIONS: Record<string, string[]> = {
 };
 
 // Gaseste conceptul cel mai relevant pentru un text
+const STOP_WORDS = new Set([
+  'ce', 'este', 'sunt', 'era', 'fost', 'esti', 'fie', 'fi',
+  'cine', 'care', 'unde', 'cum', 'cand', 'cat', 'cata', 'cati', 'cate',
+  'de', 'la', 'in', 'pe', 'cu', 'din', 'prin', 'spre', 'sub', 'peste',
+  'un', 'una', 'niste', 'cel', 'cea', 'cei', 'cele', 'al', 'ale',
+  'si', 'sau', 'dar', 'iar', 'deci', 'nici', 'ori', 'daca', 'ca',
+  'mai', 'mai', 'tot', 'inca', 'deja', 'doar', 'chiar', 'foarte',
+  'nu', 'da', 'asa', 'asta', 'ala', 'acea', 'acesta', 'aceasta',
+  'eu', 'tu', 'el', 'ea', 'noi', 'voi', 'lor', 'mea', 'meu', 'lui', 'ei',
+  'am', 'ai', 'are', 'avem', 'aveti', 'au',
+  'despre', 'pentru', 'poate', 'spune', 'stii', 'stiu',
+]);
+
 export function findRelevantConcept(text: string): Concept | null {
   const n = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  
+  const words = n.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+
   const scores: [string, number][] = [];
   for (const [id, concept] of Object.entries(CONCEPTS)) {
     let score = 0;
     const labelN = concept.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (n.includes(labelN)) score += 5;
-    if (n.includes(id.replace(/_/g, ' '))) score += 4;
-    const words = n.split(/\s+/);
+    if (n.includes(labelN) && labelN.length > 3) score += 5;
+    const idSpaced = id.replace(/_/g, ' ');
+    if (n.includes(idSpaced) && idSpaced.length > 3) score += 4;
     for (const w of words) {
       if (w.length > 4 && (labelN.includes(w) || id.includes(w))) score += 2;
-      if (concept.description.toLowerCase().includes(w)) score += 1;
     }
-    if (score > 0) scores.push([id, score]);
+    if (score >= 4) scores.push([id, score]);
   }
-  
+
   if (scores.length === 0) return null;
   scores.sort((a, b) => b[1] - a[1]);
   return CONCEPTS[scores[0][0]] || null;
