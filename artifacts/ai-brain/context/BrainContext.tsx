@@ -131,8 +131,6 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     setMessages(prev => {
       const next = [...prev, aiMsg];
       persist(next, brainRef.current);
-      // Verifica daca Axon vrea sa initieze un gand proactiv
-      setTimeout(() => addProactiveThought(next), 100);
       return next;
     });
 
