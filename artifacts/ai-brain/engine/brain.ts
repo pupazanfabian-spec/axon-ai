@@ -1,7 +1,11 @@
 
-// Axon AI Brain v5 — Semantic, inferential, entity-aware, temporally conscious, constitutionally protected
+// Axon AI Brain v6 — Semantic, inferential, entity-aware, constitutionally protected, response-synthesizing
 
 import { findRelevantConcept, findRelevantConceptExtended, CONCEPTS, addDynamicConcept } from './knowledge';
+import {
+  detectQuestionType, synthesizeKnowledgeResponse, generateSmartUnknown,
+  detectTopicCategory, ResponseCtx,
+} from './responseGenerator';
 import { MindState, createMindState, generateDeepResponse } from './mind';
 import {
   SelfKnowledge, createSelfKnowledge, selfUpdate,
@@ -988,7 +992,7 @@ export function processMessage(
       ? ` Creatorul meu: **${state.memory['__creator__'] || 'înregistrat'}**.` : '';
     const memCount = Object.keys(state.memory).filter(k => k.startsWith('mem_')).length;
     const docCount = state.learnedDocuments.length;
-    response = `Sunt **Axon** — asistent AI offline, v${state.selfKnowledge.intelligenceVersion}.${creatorInfo}\n\n**Ce știu:**\n• 270+ subiecte: știință, medicină, geografie, istorie, economie, psihologie, tehnologie, sport, cultură română\n• Sfaturi practice: somn, stres, bani, relații, fitness\n• Inferență logică și urmărire context\n\n**Starea mea acum:** ${memCount} notițe memorate, ${docCount} documente studiate, ${state.conversationCount} mesaje în această sesiune.\n\nFuncționez 100% offline, fără internet, fără cloud.`;
+    response = `Sunt **Axon** — asistent AI cu memorie persistentă, raționament și acces la internet. v${state.selfKnowledge.intelligenceVersion}${creatorInfo}\n\n**Capabilități:**\n• 270+ subiecte în memorie locală (știință, medicină, geografie, istorie, economie, psihologie, tehnologie, sport, cultură română)\n• 📡 Căutare online automată (Wikipedia RO/EN + DuckDuckGo) când nu știu ceva\n• Raționament contextual — răspunsuri adaptate tipului întrebării (ce/cum/de ce/când/cine)\n• Memorie persistentă — rețin persoane, entități, fapte, preferințe\n• Studiez documente și răspund la întrebări despre ele\n• Inferență logică — deduc din ce îmi spui\n\n**Acum:** ${memCount} notițe, ${docCount} documente, ${state.conversationCount} mesaje în sesiune.\n\nÎntreabă orice — răspund din memorie sau caut online.`;
     selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
   }
@@ -1104,27 +1108,50 @@ export function processMessage(
     return docResult + contradNote;
   }
 
-  // ── 17. Căutare în dicționar fără intenție explicită ─────────────────────
+  // ── 17. Căutare în dicționar — răspuns sintetizat inteligent ─────────────
   const dictResult = searchDictionary(trimmed);
   if (dictResult) {
-    selfUpdate(trimmed, dictResult, state.selfKnowledge, messageHistory, intent);
-    return adaptResponseStyle(dictResult, state.selfKnowledge.preferredStyle);
+    const qType = detectQuestionType(trimmed);
+    const topicCat = detectTopicCategory(trimmed);
+    const rCtx: ResponseCtx = {
+      userName: state.userName,
+      conversationCount: state.conversationCount,
+      lastTopics: state.lastTopics,
+    };
+    const synthesized = synthesizeKnowledgeResponse(dictResult, trimmed, topicCat, qType, rCtx);
+    selfUpdate(trimmed, synthesized, state.selfKnowledge, messageHistory, intent);
+    return synthesized;
   }
 
-  // ── 18. Baza de cunoaștere (statică + dinamică) ───────────────────────────
+  // ── 18. Baza de cunoaștere (statică + dinamică) — sintetizat ─────────────
   const concept = findRelevantConceptExtended(trimmed);
   if (concept) {
     mind_updateConcept(state.mindState, concept.id);
+    const qType = detectQuestionType(trimmed);
+    const topicCat = detectTopicCategory(concept.id);
+
     if (intent === 'opinie' && concept.axonOpinion) {
       response = concept.axonOpinion;
     } else {
+      // Construiește conținut bogat
       const fact = concept.facts[Math.floor(Math.random() * concept.facts.length)];
       const relIds = concept.related.filter(r => CONCEPTS[r]);
       const relConcept = relIds.length > 0 ? CONCEPTS[relIds[0]] : null;
-      const parts = [`**${concept.label}** — ${concept.description}`, '', fact];
-      if (relConcept) parts.push(`\nLegat de **${relConcept.label}**: ${relConcept.description}`);
-      if (concept.axonOpinion && intent === 'opinie') parts.push(`\n*Opinia mea:* ${concept.axonOpinion}`);
-      response = adaptResponseStyle(parts.join('\n'), state.selfKnowledge.preferredStyle);
+
+      let rawContent = `${concept.description}\n\n${fact}`;
+      if (relConcept) {
+        rawContent += `\n\n🔗 **Legat de ${relConcept.label}:** ${relConcept.description}`;
+      }
+      if (concept.axonOpinion) {
+        rawContent += `\n\n💭 *Opinia mea:* ${concept.axonOpinion}`;
+      }
+
+      const rCtx: ResponseCtx = {
+        userName: state.userName,
+        conversationCount: state.conversationCount,
+        lastTopics: state.lastTopics,
+      };
+      response = synthesizeKnowledgeResponse(rawContent, concept.label, topicCat, qType, rCtx);
     }
     selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
@@ -1277,27 +1304,25 @@ function generateFallback(text: string, state: BrainState): string {
     return `Nu am date istorice sau temporale exacte pentru aceasta. Poți reformula cu mai mult context — știu despre evenimentele istorice majore.`;
   }
 
-  // 5. Dacă e o întrebare și există documente
-  if (/\?/.test(text)) {
-    if (hasDocs) {
-      return `Nu am găsit răspunsul în documentele mele (${state.learnedDocuments.length} fișiere). Încearcă să reformulezi întrebarea sau să detaliezi mai mult.`;
-    }
-    const kws = extractKeywords(text, 3);
-    if (kws.length > 0) {
-      return pick([
-        `Nu am date specifice despre "${kws[0]}" în baza mea offline. Poți să îmi spui "Știai că..." și voi reține informația pentru viitor.`,
-        `Subiect nou pentru mine: **"${kws[0]}"**. Îmi poți furniza informații? Voi memora și voi putea răspunde data viitoare.`,
-        `Nu am informații despre asta în baza mea. Dacă îmi trimiți un document relevant sau îmi explici, voi putea ajuta.`,
-      ]);
-    }
+  // 5. Smart unknown — mesaj util cu opțiuni concrete
+  const kws = extractKeywords(text, 4);
+  const rCtx: ResponseCtx = {
+    userName: state.userName,
+    conversationCount: state.conversationCount,
+    lastTopics: state.lastTopics,
+  };
+
+  if (/[?]/.test(text) || /^(ce|cum|de ce|cand|unde|cine|cat|care)/.test(n)) {
+    return generateSmartUnknown(text, kws, rCtx);
   }
 
-  // 6. Mesaj general — afirmativ, nu o pauză
+  // 6. Mesaj general — afirmativ, cu ofertă de ajutor
   const generalResponses = [
-    'Înțeles. Ce vrei să aprofundăm?',
-    `Notez${userName}. Continuă — ascult.`,
-    'Am procesat. Ai o întrebare sau vrei să aprofundăm ceva?',
-    'Primit. Ce urmează?',
+    `Înțeles${userName ? ` **${state.userName}**` : ''}. Ce vrei să aprofundăm?`,
+    'Notez. Ai o întrebare sau vrei să explorez ceva anume?',
+    'Am procesat. Cum pot ajuta mai departe?',
+    `Primit${userName ? ` **${state.userName}**` : ''}. Ce urmează?`,
+    'Înțeleg. Pune o întrebare sau spune-mi ce vrei să știi.',
   ];
 
   return pick(generalResponses);

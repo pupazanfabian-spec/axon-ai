@@ -13,6 +13,7 @@ import { createTemporalMemory } from '@/engine/temporal';
 import { createConstitutionState } from '@/engine/constitution';
 import { useLLM } from '@/context/LLMContext';
 import { searchOnline, isOnlineIntent } from '@/engine/webSearch';
+import { detectQuestionType, synthesizeWebResponse, detectTopicCategory } from '@/engine/responseGenerator';
 
 interface BrainContextType {
   messages: Message[];
@@ -167,13 +168,14 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
       try {
         const onlineResult = await searchOnline(text);
         if (onlineResult.found) {
-          if (wantsOnline) {
-            // Utilizatorul a cerut explicit online — arată doar rezultatul web
-            response = `📡 **${onlineResult.source}**\n\n${onlineResult.text}`;
-          } else {
-            // Fallback automat — completează răspunsul cu informații online
-            response = `📡 **${onlineResult.source}**\n\n${onlineResult.text}`;
-          }
+          const qType = detectQuestionType(text);
+          response = synthesizeWebResponse(
+            onlineResult.text,
+            onlineResult.source,
+            text,
+            qType,
+            { userName: brainRef.current.userName ?? undefined },
+          );
         }
       } catch {
         // Fără internet sau eroare — păstrăm răspunsul local
