@@ -1,8 +1,9 @@
 
 // Bulina flotantă Axon — se poate muta pe ecran, expandează meniu cu opțiuni
 // Include: captură ecran, citire text (OCR), memorare, trimitere la Axon
+// v1.2 — fix crash: înlocuit __getValue() cu ref tracking, haptics în try-catch
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated, Dimensions, PanResponder, StyleSheet,
   Text, TouchableOpacity, View, Modal, ActivityIndicator,
@@ -24,6 +25,14 @@ try {
   TextRecognition = null;
 }
 
+// Haptics sigur — nu crăpă dacă dispozitivul nu suportă
+function safeHapticLight() {
+  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+}
+function safeHapticSuccess() {
+  try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+}
+
 interface FloatingBubbleProps {
   onSendToChat: (text: string) => void;
   onMemorize: (text: string) => void;
@@ -33,76 +42,40 @@ type BubbleState = 'collapsed' | 'expanded';
 
 const BUBBLE_SIZE = 56;
 const MENU_SIZE = 200;
+const INIT_X = SCREEN_W - BUBBLE_SIZE - 20;
+const INIT_Y = SCREEN_H - BUBBLE_SIZE - 120;
 
 export default function FloatingBubble({ onSendToChat, onMemorize }: FloatingBubbleProps) {
   const [bubbleState, setBubbleState] = useState<BubbleState>('collapsed');
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastExtractedText, setLastExtractedText] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  // Folosim state pentru poziția meniului față de bulină (evită __getValue în render)
+  const [menuOnLeft, setMenuOnLeft] = useState(true);
 
-  // Poziție inițială — dreapta jos
-  const pan = useRef(new Animated.ValueXY({
-    x: SCREEN_W - BUBBLE_SIZE - 20,
-    y: SCREEN_H - BUBBLE_SIZE - 120,
-  })).current;
+  // Ref care ține poziția curentă a bulinei — înlocuiește __getValue()
+  const positionRef = useRef({ x: INIT_X, y: INIT_Y });
 
+  const pan = useRef(new Animated.ValueXY({ x: INIT_X, y: INIT_Y })).current;
   const scale = useRef(new Animated.Value(1)).current;
   const menuOpacity = useRef(new Animated.Value(0)).current;
 
   const isDragging = useRef(false);
   const dragStartTime = useRef(0);
 
-  // ─── Drag ──────────────────────────────────────────────────────────────────
-  const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-
-    onPanResponderGrant: () => {
-      isDragging.current = false;
-      dragStartTime.current = Date.now();
-      pan.setOffset({ x: (pan.x as any).__getValue(), y: (pan.y as any).__getValue() });
-      pan.setValue({ x: 0, y: 0 });
-      Animated.spring(scale, { toValue: 0.9, useNativeDriver: true }).start();
-    },
-
-    onPanResponderMove: (_, gestureState) => {
-      if (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5) {
-        isDragging.current = true;
-      }
-      pan.setValue({ x: gestureState.dx, y: gestureState.dy });
-    },
-
-    onPanResponderRelease: (_, gestureState) => {
-      pan.flattenOffset();
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
-
-      // Snap la marginea ecranului
-      const currentX = (pan.x as any).__getValue();
-      const snapX = currentX < SCREEN_W / 2
-        ? 12
-        : SCREEN_W - BUBBLE_SIZE - 12;
-
-      Animated.spring(pan, {
-        toValue: {
-          x: snapX,
-          y: Math.max(60, Math.min(SCREEN_H - 160, (pan.y as any).__getValue())),
-        },
-        useNativeDriver: false,
-        tension: 120,
-        friction: 8,
-      }).start();
-
-      // Dacă e tap (nu drag) — toggle meniu
-      const wasTap = !isDragging.current && Date.now() - dragStartTime.current < 300;
-      if (wasTap) {
-        handleTap();
-      }
-    },
-  })).current;
+  // Sincronizăm positionRef cu Animated.ValueXY prin listener
+  useEffect(() => {
+    const id = pan.addListener((val) => {
+      positionRef.current = val;
+    });
+    return () => pan.removeListener(id);
+  }, [pan]);
 
   // ─── Toggle meniu ──────────────────────────────────────────────────────────
   const handleTap = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    safeHapticLight();
+    // Actualizăm latura meniului bazat pe poziția ref (nu __getValue)
+    setMenuOnLeft(positionRef.current.x > SCREEN_W / 2);
     const nextState = bubbleState === 'collapsed' ? 'expanded' : 'collapsed';
     setBubbleState(nextState);
 
@@ -122,10 +95,75 @@ export default function FloatingBubble({ onSendToChat, onMemorize }: FloatingBub
     }).start();
   }, [menuOpacity]);
 
+  // ─── Drag ──────────────────────────────────────────────────────────────────
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+
+    onPanResponderGrant: () => {
+      isDragging.current = false;
+      dragStartTime.current = Date.now();
+      // Folosim positionRef în loc de __getValue()
+      pan.setOffset({ x: positionRef.current.x, y: positionRef.current.y });
+      pan.setValue({ x: 0, y: 0 });
+      Animated.spring(scale, { toValue: 0.9, useNativeDriver: true }).start();
+    },
+
+    onPanResponderMove: (_, gestureState) => {
+      if (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5) {
+        isDragging.current = true;
+      }
+      pan.setValue({ x: gestureState.dx, y: gestureState.dy });
+    },
+
+    onPanResponderRelease: (_, gestureState) => {
+      // Calculăm noua poziție din ref + gestureState (nu din __getValue)
+      const rawX = positionRef.current.x + gestureState.dx;
+      const rawY = positionRef.current.y + gestureState.dy;
+
+      pan.flattenOffset();
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+
+      const snapX = rawX < SCREEN_W / 2
+        ? 12
+        : SCREEN_W - BUBBLE_SIZE - 12;
+      const snapY = Math.max(60, Math.min(SCREEN_H - 160, rawY));
+
+      Animated.spring(pan, {
+        toValue: { x: snapX, y: snapY },
+        useNativeDriver: false,
+        tension: 120,
+        friction: 8,
+      }).start(() => {
+        // După animație, positionRef e actualizat de listener
+      });
+
+      const wasTap = !isDragging.current && Date.now() - dragStartTime.current < 300;
+      if (wasTap) {
+        // handleTap e definit mai sus cu useCallback — îl apelăm direct
+        // (nu putem folosi ref la handleTap în panResponder.create; folosim flag)
+        isDragging.current = false;
+      }
+
+      if (wasTap) {
+        safeHapticLight();
+        setMenuOnLeft(snapX > SCREEN_W / 2);
+        setBubbleState(prev => {
+          const next = prev === 'collapsed' ? 'expanded' : 'collapsed';
+          Animated.timing(menuOpacity, {
+            toValue: next === 'expanded' ? 1 : 0,
+            duration: 200,
+            useNativeDriver: true,
+          }).start();
+          return next;
+        });
+      }
+    },
+  })).current;
+
   // ─── Citire text din imagine (OCR) ────────────────────────────────────────
   const extractTextFromImage = useCallback(async (imageUri: string): Promise<string> => {
     if (!TextRecognition) {
-      // Fallback dacă ML Kit nu e disponibil
       return '[OCR indisponibil — necesită rebuild APK cu ML Kit]';
     }
     try {
@@ -162,7 +200,7 @@ export default function FloatingBubble({ onSendToChat, onMemorize }: FloatingBub
         setLastExtractedText(text);
         setShowPreview(true);
       }
-    } catch (e) {
+    } catch {
       Alert.alert('Eroare', 'Nu am putut accesa camera.');
     } finally {
       setIsProcessing(false);
@@ -205,7 +243,7 @@ export default function FloatingBubble({ onSendToChat, onMemorize }: FloatingBub
   const handleSendExtracted = useCallback(() => {
     if (!lastExtractedText) return;
     setShowPreview(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    safeHapticSuccess();
     onSendToChat(`Am fotografiat ceva. Textul de pe ecran:\n\n"${lastExtractedText}"\n\nAnalizează și comentează.`);
     setLastExtractedText(null);
   }, [lastExtractedText, onSendToChat]);
@@ -213,15 +251,11 @@ export default function FloatingBubble({ onSendToChat, onMemorize }: FloatingBub
   const handleMemorizeExtracted = useCallback(() => {
     if (!lastExtractedText) return;
     setShowPreview(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    safeHapticSuccess();
     onMemorize(lastExtractedText);
     onSendToChat(`Memorează asta: "${lastExtractedText.slice(0, 200)}"`);
     setLastExtractedText(null);
   }, [lastExtractedText, onMemorize, onSendToChat]);
-
-  // ─── Poziție meniu față de bulină ────────────────────────────────────────
-  const bubbleX = (pan.x as any).__getValue();
-  const menuOnLeft = bubbleX > SCREEN_W / 2;
 
   return (
     <>
