@@ -183,6 +183,7 @@ type Intent =
   | 'documente_lista' | 'introducere_utilizator'
   | 'creator_declare' | 'creator_verify' | 'raport_invatare'
   | 'definitie' | 'opinie' | 'gandire_profunda'
+  | 'conversatie_anterioara'
   | 'unknown';
 
 function detectIntent(text: string): Intent {
@@ -221,6 +222,9 @@ function detectIntent(text: string): Intent {
   if (/(crezi|parerea ta|ce crezi|ce gandesti|opinia ta|cum vezi|ce zici despre)/.test(n)) return 'opinie';
   if (/(de ce|cum functioneaza|care e sensul|exista|univers|viata|moarte|fericire|constiinta|timp|spatiu|gandire|minte|evolutie|liber arbitru)/.test(n)) return 'gandire_profunda';
   if (/(sfat|recomandare|ce sa fac|cum sa|sugestie)/.test(n)) return 'sfat';
+
+  // Referinta la conversatia anterioara
+  if (/(ce am zis|ce ti-am spus|ce am discutat|ce am vorbit|iti amintesti|iti mai amintesti|mai devreme|la inceput|inainte am|am mentionat|am spus|ai spus|ce ai raspuns|ce ai zis|readu|adresat|anterior)/.test(n)) return 'conversatie_anterioara';
 
   return 'unknown';
 }
@@ -364,6 +368,106 @@ const STATIC: Record<string, string[]> = {
   ],
 };
 
+// ─── Memoria completa a conversatiei ─────────────────────────────────────────
+
+interface HistoryMessage {
+  role: string;
+  content: string;
+}
+
+// Cauta in toata istoria conversatiei
+function searchConversationHistory(query: string, history: HistoryMessage[]): string | null {
+  if (history.length < 2) return null;
+
+  const nq = norm(query);
+  const keywords = nq.split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
+  if (keywords.length === 0) return null;
+
+  // Cauta in mesajele anterioare (exclusiv ultimul)
+  const searchable = history.slice(0, -1);
+  const results: { msg: HistoryMessage; score: number; index: number }[] = [];
+
+  for (let i = 0; i < searchable.length; i++) {
+    const msg = searchable[i];
+    const nc = norm(msg.content);
+    const score = keywords.reduce((s, kw) => s + (nc.includes(kw) ? 2 : 0), 0);
+    if (score > 0) results.push({ msg, score, index: i });
+  }
+
+  if (results.length === 0) return null;
+  results.sort((a, b) => b.score - a.score);
+  const best = results[0];
+
+  // Gaseste contextul (mesajul precedent sau urmator)
+  const idx = best.index;
+  const msgsBefore = searchable.slice(Math.max(0, idx - 1), idx + 2);
+  const snippet = msgsBefore.map(m => `**${m.role === 'user' ? 'Tu' : 'Axon'}:** ${m.content.slice(0, 200)}`).join('\n');
+
+  return `Din conversația noastră:\n\n${snippet}`;
+}
+
+// Extrage context relevant din intreaga conversatie
+function extractContextFromHistory(query: string, history: HistoryMessage[]): string {
+  if (history.length < 4) return '';
+
+  const nq = norm(query);
+  const contextBits: string[] = [];
+
+  // Cauta informatii despre utilizator mentionate anterior
+  for (const msg of history.filter(m => m.role === 'user')) {
+    const nc = norm(msg.content);
+    // Job / ocupatie
+    if (/(lucrez|sunt \w+ist|sunt \w+or|profesie|job|munca|birou)/.test(nc) && nq !== nc) {
+      contextBits.push(`(Mi-ai spus anterior: "${msg.content.slice(0, 80)}")`);
+      break;
+    }
+  }
+
+  // Cauta ultimul topic discutat
+  const recentUserMsgs = history.filter(m => m.role === 'user').slice(-5, -1);
+  for (const msg of recentUserMsgs.reverse()) {
+    const topic = detectTopic(msg.content);
+    if (topic !== 'general') {
+      return `[Context: conversația anterioară despre ${topic}]`;
+    }
+  }
+
+  return contextBits.join(' ');
+}
+
+// Construieste un sumar al conversatiei
+function buildConversationSummary(history: HistoryMessage[]): string {
+  const userMessages = history.filter(m => m.role === 'user');
+  if (userMessages.length === 0) return 'Conversație nouă.';
+
+  const topics = new Set<string>();
+  const names: string[] = [];
+  const facts: string[] = [];
+
+  for (const msg of userMessages) {
+    const topic = detectTopic(msg.content);
+    if (topic !== 'general') topics.add(topic);
+
+    // Detecteaza nume mentionat
+    const nameM = msg.content.match(/(?:ma numesc|sunt|cheama-ma)\s+([A-ZĂÂÎȘȚ][a-zăâîșț]{2,15})/);
+    if (nameM) names.push(nameM[1]);
+
+    // Detecteaza fapte importante
+    const factM = msg.content.match(/(?:de fapt|stiai ca|important:)\s+(.{10,80})/i);
+    if (factM) facts.push(factM[1]);
+  }
+
+  const lines = [`**Sumar conversație** (${userMessages.length} mesaje):`];
+  if (topics.size > 0) lines.push(`📚 Topicuri: ${[...topics].join(', ')}`);
+  if (names.length > 0) lines.push(`👤 Nume menționate: ${names.join(', ')}`);
+  if (facts.length > 0) {
+    lines.push(`💡 Fapte notate:`);
+    facts.slice(-3).forEach((f, i) => lines.push(`  ${i + 1}. ${f}`));
+  }
+
+  return lines.join('\n');
+}
+
 // ─── Motor principal ──────────────────────────────────────────────────────────
 
 export function processMessage(
@@ -469,7 +573,26 @@ export function processMessage(
     return response;
   }
 
-  // ── 11. Cautare in faptele invatate ──────────────────────────────────────
+  // ── 11. Referinta la conversatia anterioara ──────────────────────────────
+  if (intent === 'conversatie_anterioara') {
+    const nTrimmed = norm(trimmed);
+    if (/(sumar|rezuma|ce am discutat|ce am vorbit|despre ce|toata conversatia|rezumatul)/.test(nTrimmed)) {
+      response = buildConversationSummary(messageHistory);
+      selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+      return response;
+    }
+    const histResult = searchConversationHistory(trimmed, messageHistory);
+    if (histResult) {
+      selfUpdate(trimmed, histResult, state.selfKnowledge, messageHistory);
+      return histResult;
+    }
+    const total = messageHistory.filter(m => m.role === 'user').length;
+    response = `Nu am găsit exact ce cauți în conversația noastră (${total} mesaje). Poți fi mai specific?`;
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
+  }
+
+  // ── 11b. Cautare in faptele invatate ─────────────────────────────────────
   if (state.selfKnowledge.learnedFacts.length > 0) {
     const nq = norm(trimmed);
     const relevantFact = state.selfKnowledge.learnedFacts.find(f => {
