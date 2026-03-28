@@ -1,8 +1,9 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Message, BrainState, LearnedDocument, processMessage, processDocument, createInitialBrainState, getProactiveThought } from '@/engine/brain';
+import { Message, BrainState, processMessage, processDocument, createInitialBrainState } from '@/engine/brain';
 import { createMindState } from '@/engine/mind';
+import { createSelfKnowledge } from '@/engine/learning';
 
 interface BrainContextType {
   messages: Message[];
@@ -52,9 +53,12 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
             addedAt: new Date(d.addedAt),
           }));
           // Asigura ca mindState exista intotdeauna
-          if (!parsed.mindState) {
-            parsed.mindState = createMindState();
+          if (!parsed.mindState) parsed.mindState = createMindState();
+          if (!parsed.selfKnowledge) {
+            parsed.selfKnowledge = createSelfKnowledge();
           }
+          if (parsed.creatorId === undefined) parsed.creatorId = null;
+          if (parsed.isCreatorPresent === undefined) parsed.isCreatorPresent = false;
           brainRef.current = parsed;
           setBrainState({ ...parsed });
         }
@@ -79,27 +83,6 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
-  const addProactiveThought = useCallback(async (currentMsgs: Message[]) => {
-    const thought = getProactiveThought(brainRef.current);
-    if (!thought) return;
-
-    // Pauza naturala — Axon pare ca se gandeste singur
-    await new Promise(r => setTimeout(r, 2500 + Math.random() * 2000));
-
-    const proactiveMsg: Message = {
-      id: (Date.now() + 10).toString(),
-      role: 'assistant',
-      content: thought,
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => {
-      const next = [...prev, proactiveMsg];
-      persist(next, brainRef.current);
-      return next;
-    });
-  }, [persist]);
-
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
@@ -117,9 +100,10 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     const thinkMs = 300 + Math.random() * 600;
     await new Promise(r => setTimeout(r, thinkMs));
 
-    const response = processMessage(text, brainRef.current);
-    const updatedState = { ...brainRef.current };
-    setBrainState(updatedState);
+    // Trimite istoricul conversatiei pentru auto-actualizare
+    const history = messages.map(m => ({ role: m.role, content: m.content }));
+    const response = processMessage(text, brainRef.current, history);
+    setBrainState({ ...brainRef.current });
 
     const aiMsg: Message = {
       id: (Date.now() + 1).toString(),
@@ -135,7 +119,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     });
 
     setIsThinking(false);
-  }, [persist, addProactiveThought]);
+  }, [persist, messages]);
 
   const addDocument = useCallback(async (name: string, content: string) => {
     setIsThinking(true);
@@ -176,7 +160,18 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     const docs = brainRef.current.learnedDocuments;
     const mem = brainRef.current.memory;
     const uname = brainRef.current.userName;
-    brainRef.current = { ...createInitialBrainState(), learnedDocuments: docs, memory: mem, userName: uname };
+    const sk = brainRef.current.selfKnowledge;
+    const creatorId = brainRef.current.creatorId;
+    const isCreatorPresent = brainRef.current.isCreatorPresent;
+    brainRef.current = {
+      ...createInitialBrainState(),
+      learnedDocuments: docs,
+      memory: mem,
+      userName: uname,
+      selfKnowledge: sk,
+      creatorId,
+      isCreatorPresent,
+    };
     setBrainState({ ...brainRef.current });
     AsyncStorage.setItem(MESSAGES_KEY, JSON.stringify([reset]));
     AsyncStorage.setItem(STATE_KEY, JSON.stringify(brainRef.current));

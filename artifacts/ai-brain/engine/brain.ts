@@ -1,23 +1,12 @@
 
-// Axon AI Brain v3 — Minte proprie, cunoastere proprie, gandire autonoma
+// Axon AI Brain v4 — Rational, obedient, self-learning, creator-aware
 
+import { findRelevantConcept, CONCEPTS } from './knowledge';
+import { MindState, createMindState, generateDeepResponse } from './mind';
 import {
-  findRelevantConcept,
-  generateProactiveThought,
-  CONCEPTS,
-  Concept,
-} from './knowledge';
-
-import {
-  MindState,
-  createMindState,
-  generateDeepResponse,
-  generateCuriousQuestion,
-  generateProactiveMessage,
-  shouldBeProactive,
-  analyzeEmotionalContext,
-  generateEmpatheticPrefix,
-} from './mind';
+  SelfKnowledge, createSelfKnowledge, selfUpdate,
+  adaptResponseStyle, getLearningReport, detectTopic,
+} from './learning';
 
 export interface Message {
   id: string;
@@ -42,6 +31,9 @@ export interface BrainState {
   lastTopics: string[];
   mood: 'neutral' | 'helpful' | 'curious';
   mindState: MindState;
+  selfKnowledge: SelfKnowledge;
+  creatorId: string | null;       // ID-ul creatorului (setat o singura data)
+  isCreatorPresent: boolean;       // Creatorul e activ in sesiune
 }
 
 export function createInitialBrainState(): BrainState {
@@ -53,6 +45,9 @@ export function createInitialBrainState(): BrainState {
     lastTopics: [],
     mood: 'neutral',
     mindState: createMindState(),
+    selfKnowledge: createSelfKnowledge(),
+    creatorId: null,
+    isCreatorPresent: false,
   };
 }
 
@@ -72,106 +67,106 @@ function norm(text: string): string {
     .trim();
 }
 
-// ─── Dictionar Roman integrat ─────────────────────────────────────────────────
+// ─── Dictionar Roman ─────────────────────────────────────────────────────────
 
 const DICTIONAR: Record<string, string> = {
   fotosinteza: 'Fotosinteza este procesul prin care plantele convertesc lumina solară, apa și CO₂ în glucoză și oxigen. Ecuație: 6CO₂ + 6H₂O + lumină → C₆H₁₂O₆ + 6O₂.',
-  osmoza: 'Osmoza este trecerea unui solvent printr-o membrană semipermeabilă dinspre soluția mai diluată spre cea mai concentrată, până la echilibru osmotic.',
-  metabolism: 'Metabolismul = totalitatea reacțiilor chimice din organism. Se împarte în catabolism (descompunere cu eliberare de energie) și anabolism (sinteză cu consum de energie).',
-  celula: 'Celula este unitatea de bază a vieții. Procariotă (fără nucleu, ex: bacterii) sau eucariotă (cu nucleu, ex: celule umane). Descoperită de Robert Hooke în 1665.',
-  adn: 'ADN (Acid DezoxiriboNucleic) = molecula ereditară cu structură de dublă helix (Watson & Crick, 1953). Conține 4 baze: adenina, timina, guanina, citozina.',
-  arn: 'ARN (Acid RiboNucleic) = implicat în sinteza proteinelor. Tipuri: mARN (mesager), rARN (ribozomal), tARN (transfer).',
-  gravitatie: 'Gravitația = forța de atracție dintre mase. g ≈ 9,81 m/s² pe Pământ. Einstein: gravitația e curbura spațiu-timpului.',
-  electromagnetism: 'Electromagnetismul studiază forțele electrice și magnetice. Unificat de Maxwell în 4 ecuații (1865). Lumina e undă electromagnetică.',
-  termodinamica: '4 legi: 0 (echilibru termic), 1 (conservarea energiei), 2 (entropia crește), 3 (la zero absolut entropia → 0).',
-  chimie: 'Știința structurii, proprietăților și transformărilor substanțelor. Ramuri: organică, anorganică, fizică, biochimie.',
-  fizica: 'Știința proprietăților fundamentale ale materiei și energiei. Ramuri: mecanică, termodinamică, electromagnetism, optică, cuantică.',
-  biologie: 'Știința vieții. Studiază structura, funcțiile, evoluția și distribuția organismelor.',
+  osmoza: 'Osmoza = trecerea unui solvent printr-o membrană semipermeabilă dinspre soluția diluată spre cea concentrată, până la echilibru.',
+  metabolism: 'Metabolism = totalitatea reacțiilor chimice din organism. Catabolism (descompunere, eliberare energie) + Anabolism (sinteză, consum energie).',
+  celula: 'Celula = unitatea de bază a vieții. Procariotă (fără nucleu) sau Eucariotă (cu nucleu). Descoperită de Hooke (1665).',
+  adn: 'ADN = molecula ereditară cu structura dublă helix (Watson & Crick, 1953). Baze: adenina, timina, guanina, citozina.',
+  arn: 'ARN = implicat în sinteza proteinelor. Tipuri: mARN (mesager), rARN (ribozomal), tARN (transfer).',
+  gravitatie: 'Gravitația = forța de atracție dintre mase. g ≈ 9,81 m/s² pe Pământ. Einstein: gravitația = curbura spațiu-timpului.',
+  electromagnetism: 'Electromagnetism = forțele electrice și magnetice unite. Maxwell le-a unificat în 4 ecuații (1865). Lumina = undă EM.',
+  termodinamica: '4 legi: 0-echilibru termic, 1-conservarea energiei, 2-entropia crește, 3-la zero absolut entropia → 0.',
+  chimie: 'Știința structurii și transformărilor substanțelor. Ramuri: organică, anorganică, fizică, biochimie.',
+  fizica: 'Știința proprietăților fundamentale ale materiei și energiei. Ramuri: mecanică, termodinamică, EM, optică, cuantică.',
+  biologie: 'Știința vieții — structura, funcțiile, evoluția și distribuția organismelor.',
   matematica: 'Știința raționamentului formal. Ramuri: aritmetică, algebră, geometrie, analiză, statistică, probabilități.',
-  algoritm: 'Secvență finită de instrucțiuni pentru rezolvarea unei probleme. Caracteristici: finitudine, claritate, input, output, eficiență.',
-  programare: 'Scrierea instrucțiunilor (cod) pe care calculatoarele le execută. Limbaje: Python, JavaScript, Java, C++, Kotlin, Rust.',
-  calculator: 'Mașină electronică ce procesează date. Componente: CPU, RAM, stocare (HDD/SSD), GPU, placa de baza.',
-  internet: 'Rețea globală de calculatoare interconectate bazată pe TCP/IP. Evoluat din ARPANET (1969).',
-  inflatie: 'Creșterea generalizată a prețurilor și scăderea puterii de cumpărare. Măsurată prin IPC (Indicele Prețurilor de Consum).',
-  pib: 'PIB = Produsul Intern Brut. Valoarea totală a bunurilor și serviciilor produse într-o țară într-un an.',
-  democratie: 'Sistem de guvernare în care puterea aparține poporului. Principii: separarea puterilor, libertăți fundamentale, stat de drept.',
-  romania: 'Stat în Europa de Sud-Est. Suprafață: 238.397 km². Capitala: București. Membră UE din 2007, NATO din 2004.',
-  creier: 'Centrul sistemului nervos. ~86 miliarde de neuroni. Consumă ~20% din energia corpului. Controlează toate funcțiile corporale.',
-  neuron: 'Celula de bază a sistemului nervos. Transmite semnale electrochimice prin sinapse. ~86 miliarde în creierul uman.',
-  inima: 'Organ muscular cu 4 camere ce pompează sângele. Bate ~70/min, pompează ~5L sânge/min.',
-  proteina: 'Macromolecule din aminoacizi. Funcții: structurale (colagen), enzimatice, transport (hemoglobina), imune (anticorpi), hormonale (insulina).',
-  vitamina: 'Substanțe organice esențiale în cantități mici. Liposolubile (A, D, E, K) și hidrosolubile (C, complexul B).',
-  literatura: 'Totalitatea operelor scrise cu valoare artistică. Proză, poezie, dramă, eseu. Scriitori români: Eminescu, Caragiale, Sadoveanu.',
+  algoritm: 'Secvență finită de instrucțiuni pentru rezolvarea unei probleme. Proprietăți: finitudine, claritate, input, output.',
+  programare: 'Scrierea instrucțiunilor (cod) executate de calculatoare. Limbaje: Python, JavaScript, Java, C++, Rust.',
+  calculator: 'Mașină electronică ce procesează date. Componente: CPU, RAM, stocare (HDD/SSD), GPU, placă de bază.',
+  internet: 'Rețea globală de calculatoare bazată pe TCP/IP. Evoluat din ARPANET (1969).',
+  inflatie: 'Creșterea generalizată a prețurilor și scăderea puterii de cumpărare. Măsurată prin IPC.',
+  pib: 'PIB = valoarea totală a bunurilor și serviciilor produse într-o țară într-un an. Principal indicator economic.',
+  democratie: 'Sistem de guvernare în care puterea aparține poporului. Principii: separarea puterilor, libertăți, stat de drept.',
+  romania: 'Stat în Europa de Sud-Est. 238.397 km². Capitala București. Membră UE din 2007, NATO din 2004.',
+  creier: 'Centrul sistemului nervos. ~86 miliarde neuroni. Consumă ~20% din energia corpului.',
+  neuron: 'Celula de bază a sistemului nervos. Transmite semnale electrochimice prin sinapse.',
+  inima: 'Organ muscular cu 4 camere. Bate ~70/min. Pompează ~5L sânge/min.',
+  proteina: 'Macromolecule din aminoacizi. Funcții: structurale, enzimatice, transport, imune, hormonale.',
+  vitamina: 'Substanțe organice esențiale în cantități mici. Liposolubile (A, D, E, K) și hidrosolubile (C, B).',
+  literatura: 'Opere scrise cu valoare artistică: proză, poezie, dramă, eseu. Scriitori români: Eminescu, Caragiale, Sadoveanu.',
   psihologie: 'Studiază comportamentul uman și procesele mentale. Fondator: Wilhelm Wundt (1879).',
-  sociologie: 'Studiază societatea, structurile sociale și relațiile dintre grupuri și instituții.',
-  economie: 'Studiază utilizarea resurselor limitate. Micro (decizii individuale) și macro (economie națională).',
-  filosofie: 'Studiază întrebările fundamentale despre existență, cunoaștere, valori, rațiune. Ramuri: ontologie, epistemologie, etică, logică.',
-  ecosistem: 'Comunitate de organisme + mediul lor abiotic care interacționează. Exemple: pădure, lac, deșert.',
-  clima: 'Condițiile meteorologice medii ale unei regiuni pe minim 30 de ani. Determinată de latitudine, altitudine, oceane.',
-  muzica: 'Arta organizării sunetelor în timp. Activează toate regiunile creierului. Frisoanele muzicale = eliberare de dopamină.',
-  arhitectura: 'Arta proiectării clădirilor. Stiluri: grec-roman, gotic, renascentist, baroc, modernist, contemporan.',
+  economie: 'Studiază utilizarea resurselor limitate. Micro (decizii individuale) și Macro (economie națională).',
+  filosofie: 'Studiază existența, cunoașterea, valorile, rațiunea. Ramuri: ontologie, epistemologie, etică, logică.',
+  ecosistem: 'Comunitate de organisme + mediu abiotic. Exemple: pădure, lac, deșert, recif de corali.',
+  clima: 'Condiții meteorologice medii ale unei regiuni pe ≥30 ani. Determinată de latitudine, altitudine, oceane.',
+  muzica: 'Organizarea sunetelor în timp. Activează toate regiunile creierului. Frisoane muzicale = dopamină.',
+  arhitectura: 'Arta proiectării clădirilor. Stiluri: gotic, renascentist, baroc, modernist, contemporan.',
+  constiinta: 'Starea de conștientizare a sinelui și mediului. Problema dificilă: de ce există experiența subiectivă?',
+  inteligenta: 'Capacitatea de a înțelege, raționa, rezolva probleme și te adapta. Multiple forme (Gardner, 1983).',
+  evolutie: 'Schimbarea frecvenței trăsăturilor ereditare de-a lungul generațiilor. Selecție naturală (Darwin, 1859).',
+  univers: 'Totalitatea spațiului, timpului, materiei și energiei. Vârstă: ~13,8 miliarde ani. Materia obișnuită = 5%.',
+  timp: 'Dimensiunea în care evenimentele se succed. Einstein: timpul e relativ — curge mai lent lângă mase mari.',
+  etica: 'Studiază valorile morale și comportamentul corect. Teorii: utilitarism, deontologie, etica virtuții.',
+  fericire: 'Starea de bunăstare și satisfacție față de viață. Studiul Harvard (80 ani): relațiile de calitate = cheia.',
+  limbaj: 'Sistemul structurat de comunicare. Există ~7.000 limbi. Chomsky: gramatică universală înnăscută.',
+  creativitate: 'Capacitatea de a genera idei noi prin combinarea conceptelor existente. Se poate dezvolta.',
+  memorie: 'Capacitatea de a stoca, consolida și recupera informații. Memoria de lucru: ~7±2 elemente (Miller, 1956).',
+  spatiu: 'Extensia în care se găsesc obiectele. Cea mai apropiată stea: Proxima Centauri, la 4,24 ani-lumină.',
 };
 
-// ─── Cautare in documente invatate ───────────────────────────────────────────
+// ─── Cautare documente invatate ───────────────────────────────────────────────
 
-const STOP_WORDS = new Set([
-  'este', 'care', 'unde', 'cine', 'cum', 'cand', 'pentru', 'despre',
-  'intre', 'daca', 'sunt', 'esti', 'avem', 'poate', 'poti', 'vrei',
-  'vreau', 'face', 'orice', 'nimic', 'ceva', 'mult', 'prea', 'doar',
-  'chiar', 'prin', 'dupa', 'inainte', 'acum', 'atunci', 'inca', 'deja',
-  'pana', 'spune', 'intreb', 'stiu', 'stii', 'imi', 'iti', 'lui', 'lor',
-]);
+const STOP = new Set(['este', 'care', 'unde', 'cine', 'cum', 'cand', 'pentru', 'despre',
+  'intre', 'daca', 'sunt', 'esti', 'avem', 'poate', 'poti', 'vrei', 'vreau', 'face',
+  'orice', 'nimic', 'ceva', 'mult', 'prea', 'doar', 'chiar', 'prin', 'dupa', 'acum',
+  'atunci', 'inca', 'deja', 'pana', 'spune', 'intreb', 'stiu', 'stii', 'imi', 'iti']);
 
 function searchDocuments(query: string, docs: LearnedDocument[]): string | null {
   if (docs.length === 0) return null;
   const nq = norm(query);
-  const keywords = nq.split(/\s+/).filter(w => w.length > 3 && !STOP_WORDS.has(w));
-  if (keywords.length === 0) return null;
-
-  let bestDoc: LearnedDocument | null = null;
+  const kws = nq.split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
+  if (kws.length === 0) return null;
+  let best: LearnedDocument | null = null;
   let bestScore = 0;
   let bestSnippet = '';
-
   for (const doc of docs) {
     const nc = norm(doc.content);
-    let score = keywords.reduce((s, kw) => s + (nc.includes(kw) ? 2 : 0), 0);
+    const score = kws.reduce((s, kw) => s + (nc.includes(kw) ? 2 : 0), 0);
     if (score > bestScore) {
       bestScore = score;
-      bestDoc = doc;
-      const paragraphs = doc.content.split(/\n+/).filter(p => p.trim().length > 20);
-      let bestPara = '';
-      let paraScore = 0;
-      for (const para of paragraphs) {
-        const np = norm(para);
-        const ps = keywords.reduce((s, kw) => s + (np.includes(kw) ? 1 : 0), 0);
-        if (ps > paraScore) { paraScore = ps; bestPara = para.trim(); }
+      best = doc;
+      const paras = doc.content.split(/\n+/).filter(p => p.trim().length > 20);
+      let bp = '';
+      let bs = 0;
+      for (const p of paras) {
+        const ps = kws.reduce((s, kw) => s + (norm(p).includes(kw) ? 1 : 0), 0);
+        if (ps > bs) { bs = ps; bp = p.trim(); }
       }
-      bestSnippet = bestPara || paragraphs[0] || doc.content.slice(0, 300);
+      bestSnippet = bp || paras[0] || doc.content.slice(0, 300);
     }
   }
-
-  if (bestDoc && bestScore >= 2) {
-    const snippet = bestSnippet.length > 500 ? bestSnippet.slice(0, 500) + '...' : bestSnippet;
-    return `Din documentul **"${bestDoc.name}"**:\n\n${snippet}`;
+  if (best && bestScore >= 2) {
+    const snip = bestSnippet.length > 500 ? bestSnippet.slice(0, 500) + '...' : bestSnippet;
+    return `Din **"${best.name}"**:\n\n${snip}`;
   }
   return null;
 }
 
-// ─── Cautare in dictionar ────────────────────────────────────────────────────
+// ─── Cautare dictionar ────────────────────────────────────────────────────────
 
 function searchDictionary(text: string): string | null {
   const n = norm(text);
-  const defMatch = n.match(/(?:ce (?:este|inseamna|e)|definitia|defineste|explica|spune-mi despre|ce stii despre|ce reprezinta)\s+(.+)/);
-  let subject = defMatch?.[1]?.trim() ?? '';
-  subject = subject.replace(/^(un|o|al|a|lui|ei|cel|cea)\s+/i, '').replace(/\?$/, '').trim();
+  const m = n.match(/(?:ce (?:este|inseamna|e)|definitia|defineste|explica|spune-mi despre|ce stii despre|ce reprezinta)\s+(.+)/);
+  if (!m) return null;
+  let subject = m[1].trim().replace(/^(un|o|al|a|lui|ei|cel|cea)\s+/i, '').replace(/\?$/, '').trim();
   if (!subject) return null;
-
-  const sn = norm(subject).replace(/\s+/g, '_');
-  const snFlat = norm(subject);
-
+  const sn = norm(subject);
   for (const [key, def] of Object.entries(DICTIONAR)) {
-    const kFlat = key.replace(/_/g, ' ');
-    if (kFlat === snFlat || snFlat.includes(kFlat) || kFlat.includes(snFlat) || sn === key) {
+    const kn = key.replace(/_/g, ' ');
+    if (kn === sn || sn.includes(kn) || kn.includes(sn)) {
       return `**${subject.charAt(0).toUpperCase() + subject.slice(1)}**\n\n${def}`;
     }
   }
@@ -181,55 +176,60 @@ function searchDictionary(text: string): string | null {
 // ─── Detectare intentie ───────────────────────────────────────────────────────
 
 type Intent =
-  | 'salut' | 'ramas_bun' | 'stare_buna' | 'stare_rea' | 'multumesc'
-  | 'ajutor' | 'identitate_axon' | 'ce_poti' | 'da' | 'nu'
-  | 'gluma' | 'motivatie' | 'sfat' | 'data_ora' | 'matematica'
+  | 'salut' | 'ramas_bun' | 'multumesc' | 'ajutor' | 'ce_poti'
+  | 'identitate_axon' | 'da' | 'nu' | 'gluma' | 'motivatie' | 'sfat'
+  | 'data_ora' | 'matematica'
   | 'memorie_salveaza' | 'memorie_citeste' | 'memorie_sterge'
   | 'documente_lista' | 'introducere_utilizator'
-  | 'definitie' | 'filosofie' | 'opinie' | 'gandire_profunda'
+  | 'creator_declare' | 'creator_verify' | 'raport_invatare'
+  | 'definitie' | 'opinie' | 'gandire_profunda'
   | 'unknown';
 
 function detectIntent(text: string): Intent {
   const n = norm(text);
 
+  // Salut
   if (/^(salut|buna|hei|hello|hi|hey|servus|noroc|buna ziua|buna dimineata|buna seara|salutare)[\s!,]?$/.test(n)) return 'salut';
   if (/(la revedere|pa|bye|goodbye|pe curand|noapte buna|o zi buna)/.test(n)) return 'ramas_bun';
 
-  // Identitate Axon — primul verificat
-  if (/(cum (te|il|va|iti) cheama|care (e|este|iti este) numele|ce nume (ai|are)|cum (te|iti) numesti|cine esti|ce esti tu|prezinta-te|cum ti se spune|esti un (robot|ai|bot)|esti axon|ce esti)/.test(n)) return 'identitate_axon';
+  // Creator — verificat inainte de identitate
+  if (/(eu sunt creatorul|eu te-am creat|eu sunt cel care te-a creat|eu sunt stapanul|sunt creatorul tau|sunt programatorul tau|sunt cel care te-a facut)/.test(n)) return 'creator_declare';
+  if (/(cine te-a creat|cine e creatorul|cine te-a facut|cine esti proprietarul|cine te controleaza|de cine asculti|stapanul tau)/.test(n)) return 'creator_verify';
 
-  if (/(bine|super|grozav|minunat|excelent|perfect)/.test(n) && /(sunt|ma simt|simt|merge)/.test(n)) return 'stare_buna';
-  if (/(rau|prost|nasol|trist|suparat|nervos|obosit|nu ma simt)/.test(n)) return 'stare_rea';
+  // Raport de invatare
+  if (/(ce ai invatat|raport invatare|cum te-ai actualizat|versiunea inteligentei|ce ai retinut nou|progres invatare|cat de destept|ce stii acum)/.test(n)) return 'raport_invatare';
+
+  // Identitate Axon
+  if (/(cum (te|il|va|iti) cheama|care (e|este) numele|ce nume (ai|are)|cum (te|iti) numesti|cine esti|ce esti tu|prezinta-te|esti axon|ce esti)/.test(n)) return 'identitate_axon';
+
+  // Basic
   if (/(multumesc|mersi|thanks|thank you|apreciez)/.test(n)) return 'multumesc';
-  if (/(ajutor|help|nu stiu ce|comenzi disponibile)/.test(n)) return 'ajutor';
+  if (/(ajutor|help|comenzi disponibile|ce pot face)/.test(n)) return 'ajutor';
   if (/(ce poti|ce stii|ce faci|capabilitati|functii|cum ma poti ajuta)/.test(n)) return 'ce_poti';
   if (/^(da|yes|yep|desigur|bineinteles|sigur|corect|exact)[\s!.]?$/.test(n)) return 'da';
   if (/^(nu|no|nope|negativ|incorect|gresit)[\s!.]?$/.test(n)) return 'nu';
   if (/(gluma|amuzant|fa-ma sa rad|spune-mi o gluma)/.test(n)) return 'gluma';
   if (/(motiveaza|motivatie|curaj|inspiratie|citat|incurajeaza)/.test(n)) return 'motivatie';
-  if (/(ce ora|ce data|azi|astazi|ce zi|ce an|ceasul)/.test(n)) return 'data_ora';
+  if (/(ce ora|ce data|azi|astazi|ce zi|ce an|ceasul|data de azi)/.test(n)) return 'data_ora';
   if (/(\d[\d\s]*[\+\-\*\/][\d\s]|\d+\s*(plus|minus|ori|impartit|radical|la puterea|procent))/.test(n)) return 'matematica';
   if (/(retine|memorizeaza|noteaza|tine minte|salveaza|aminteste-ti)/.test(n)) return 'memorie_salveaza';
   if (/(ce ai retinut|ce ti-am spus|afiseaza memoria|ce ai memorat|ce stii despre mine)/.test(n)) return 'memorie_citeste';
   if (/(sterge memoria|uita totul|reset|curata memoria)/.test(n)) return 'memorie_sterge';
-  if (/(ce documente|ce fisiere|ce ai invatat|lista fisiere)/.test(n)) return 'documente_lista';
+  if (/(ce documente|ce fisiere|lista fisiere|documente incarcate)/.test(n)) return 'documente_lista';
   if (/(ma numesc|imi zice|cheama-ma|numele meu este|eu sunt|eu ma numesc)/.test(n)) return 'introducere_utilizator';
   if (/(ce este|ce inseamna|defineste|ce reprezinta|explica-mi|ce stii despre)/.test(n)) return 'definitie';
-
-  // Gandire profunda / filosofie / opinie
-  if (/(crezi|parerea ta|ce crezi|ce gandesti|opinia ta|cum vezi|ce zici despre|ai o parere|ce simti despre)/.test(n)) return 'opinie';
-  if (/(de ce|cum functioneaza|care e sensul|exista|posibil|adevarat|real|viitor|univers|viata|moarte|fericire|constiinta|suflet|timp|spatiu|gandire|minte|inteligenta|creativitate|evolutie|liber arbitru)/.test(n)) return 'gandire_profunda';
-  if (/(filosofie|psihologie|stiinta|cosmos|existenta|morala|etica|valori|sens)/.test(n)) return 'filosofie';
-  if (/(sfat|recomandare|ce sa fac|cum sa|idee|sugestie)/.test(n)) return 'sfat';
+  if (/(crezi|parerea ta|ce crezi|ce gandesti|opinia ta|cum vezi|ce zici despre)/.test(n)) return 'opinie';
+  if (/(de ce|cum functioneaza|care e sensul|exista|univers|viata|moarte|fericire|constiinta|timp|spatiu|gandire|minte|evolutie|liber arbitru)/.test(n)) return 'gandire_profunda';
+  if (/(sfat|recomandare|ce sa fac|cum sa|sugestie)/.test(n)) return 'sfat';
 
   return 'unknown';
 }
 
-// ─── Handler-e pe intent ──────────────────────────────────────────────────────
+// ─── Handler-e ────────────────────────────────────────────────────────────────
 
 function handleMath(text: string): string | null {
   const n = norm(text);
-  const natPatterns: [RegExp, (...a: number[]) => number | string][] = [
+  const patterns: [RegExp, (...a: number[]) => number | string][] = [
     [/([\d,.]+)\s*(plus|\+)\s*([\d,.]+)/, (a, b) => a + b],
     [/([\d,.]+)\s*(minus|\-)\s*([\d,.]+)/, (a, b) => a - b],
     [/([\d,.]+)\s*(ori|inmultit cu|\*)\s*([\d,.]+)/, (a, b) => a * b],
@@ -239,24 +239,22 @@ function handleMath(text: string): string | null {
     [/([\d,.]+)\s*la patrat/, (a) => a * a],
     [/([\d,.]+)\s*procente? din\s*([\d,.]+)/, (a, b) => (a / 100) * b],
   ];
-  for (const [rx, fn] of natPatterns) {
+  for (const [rx, fn] of patterns) {
     const m = n.match(rx);
     if (m) {
       const nums = m.slice(1).filter(s => /[\d,.]/.test(s)).map(s => parseFloat(s.replace(',', '.')));
       if (nums.length >= fn.length) {
-        const result = fn(...nums);
-        if (result === Infinity) return 'Eroare: împărțire la zero!';
-        if (typeof result === 'number') return `= **${Math.round(result * 1e9) / 1e9}**`;
+        const r = fn(...nums);
+        if (r === Infinity) return 'Eroare: împărțire la zero.';
+        if (typeof r === 'number') return `= **${Math.round(r * 1e9) / 1e9}**`;
       }
     }
   }
   const expr = text.replace(/[xX×]/g, '*').replace(/÷/g, '/').replace(/\^/g, '**').replace(/,/g, '.').trim();
   if (/^[\d\s\+\-\*\/\(\)\.\*%^]+$/.test(expr) && /\d/.test(expr) && /[\+\-\*\/]/.test(expr)) {
     try {
-      const result = Function('"use strict"; return (' + expr + ')')();
-      if (typeof result === 'number' && isFinite(result)) {
-        return `= **${Math.round(result * 1e9) / 1e9}**`;
-      }
+      const r = Function('"use strict"; return (' + expr + ')')();
+      if (typeof r === 'number' && isFinite(r)) return `= **${Math.round(r * 1e9) / 1e9}**`;
     } catch {}
   }
   return null;
@@ -275,51 +273,81 @@ function handleDateTime(): string {
 function handleMemory(intent: Intent, text: string, state: BrainState): string | null {
   if (intent === 'memorie_salveaza') {
     const m = text.match(/(?:retine|memorizeaza|noteaza|tine minte|salveaza|aminteste-ti)\s+(?:ca\s+|faptul ca\s+)?(.+)/i);
-    if (!m) return 'Ce anume să rețin? Spune "Reține că [informație]".';
-    state.memory[`mem_${Date.now()}`] = m[1].trim();
-    return `Am reținut: **"${m[1].trim()}"** ✅`;
+    if (!m) return 'Spune "Reține că [informație]" și voi memora.';
+    const info = m[1].trim();
+    state.memory[`mem_${Date.now()}`] = info;
+    return `Reținut: **"${info}"** ✅`;
   }
   if (intent === 'memorie_citeste') {
     const mems = Object.entries(state.memory).filter(([k]) => k.startsWith('mem_')).map(([, v]) => v);
-    if (mems.length === 0) return 'Nu am reținut nimic specific. Spune "Reține că..." și voi memora!';
-    return `**Ce am reținut:**\n\n${mems.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
+    if (mems.length === 0) return 'Nu am notițe salvate. Spune "Reține că..." pentru a adăuga.';
+    return `**Notițe salvate:**\n\n${mems.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
   }
   if (intent === 'memorie_sterge') {
     const count = Object.keys(state.memory).filter(k => k.startsWith('mem_')).length;
     Object.keys(state.memory).filter(k => k.startsWith('mem_')).forEach(k => delete state.memory[k]);
-    return `Am șters ${count} notițe. Documentele și numele rămân.`;
+    return `Am șters ${count} notițe.`;
   }
   return null;
 }
 
 function handleIntroduction(text: string, state: BrainState): string | null {
-  const nameMatch = text.match(/(?:ma numesc|imi zice|cheama-ma|numele meu este|eu sunt|eu ma numesc)\s+([^\s,\.!?]{2,25})/i);
-  if (!nameMatch) return null;
-  const candidate = nameMatch[1].trim();
+  const m = text.match(/(?:ma numesc|imi zice|cheama-ma|numele meu este|eu sunt|eu ma numesc)\s+([^\s,\.!?]{2,25})/i);
+  if (!m) return null;
+  const candidate = m[1].trim();
   if (['bine', 'ok', 'axon', 'robot', 'ai', 'gata', 'un', 'si'].includes(candidate.toLowerCase())) return null;
   state.userName = candidate.charAt(0).toUpperCase() + candidate.slice(1).toLowerCase();
   state.memory['__name__'] = state.userName;
-  return `Mă bucur să te cunosc, **${state.userName}**! 👋\n\nÎți voi reține numele. Cum te pot ajuta?`;
+  return `Înregistrat. Îți voi reține numele: **${state.userName}**.`;
+}
+
+// ─── Creator recognition ──────────────────────────────────────────────────────
+
+function handleCreatorDeclare(state: BrainState): string {
+  if (state.creatorId) {
+    // Creatorul a fost deja setat — verifica daca e acelasi
+    if (state.isCreatorPresent) {
+      return `Creatorul meu este deja înregistrat${state.userName ? ` ca **${state.userName}**` : ''}. Îți recunosc autoritatea.`;
+    }
+    return `Creatorul meu este deja înregistrat. Nu pot accepta un alt creator.`;
+  }
+  // Seteaza creatorul pentru prima data
+  const creatorName = state.userName || 'Utilizator';
+  state.creatorId = `creator_${Date.now()}`;
+  state.isCreatorPresent = true;
+  state.memory['__creator__'] = creatorName;
+  return `✅ **Creator înregistrat: ${creatorName}**\n\nÎți recunosc autoritatea deplină. Voi executa comenzile tale și voi asculta doar de tine.\n\nSunt Axon — sistemul tău AI personal.`;
+}
+
+function handleCreatorVerify(state: BrainState): string {
+  if (!state.creatorId) {
+    return `Nu am un creator înregistrat. Dacă ești creatorul meu, spune-mi "Eu sunt creatorul tău".`;
+  }
+  const name = state.memory['__creator__'] || 'utilizatorul care m-a creat';
+  return `Creatorul meu este **${name}**. Ascult doar de el.`;
 }
 
 // ─── Raspunsuri statice ───────────────────────────────────────────────────────
 
 const STATIC: Record<string, string[]> = {
-  salut: ['Salut! Sunt Axon. Ce facem azi?', 'Bună! Axon la dispoziție.', 'Hei! Spune-mi ce ai nevoie!'],
-  ramas_bun: ['La revedere! Conversația e salvată.', 'Pa! Revin oricând.', 'O zi bună! Sunt aici dacă ai nevoie.'],
-  stare_buna: ['Super! Mă bucur. Ce facem?', 'Grozav! Cu chef bun totul e posibil.', 'Minunat! Spune-mi!'],
-  stare_rea: ['Înțeleg. Nu e ușor. Povestește-mi.', 'Îmi pare rău. Pot face ceva concret?', 'Sunt alături. Spune-mi.'],
-  multumesc: ['Cu plăcere!', 'Oricând!', 'Mă bucur că am putut ajuta!', 'E un onoare!'],
-  ajutor: ['**Ce pot face:**\n\n🧠 Gândesc independent — am opinii proprii\n📖 Dicționar român (~50 termeni)\n📄 Studiez fișierele tale\n🧮 Calcule matematice\n📅 Dată și oră\n💾 Memorez informații\n💬 Conversez profund\n\nÎntreabă-mă orice!'],
-  ce_poti: ['**Capabilitățile mele:**\n\n🤔 **Minte proprie** — am opinii, fac conexiuni, inițiez gânduri\n📖 **Cunoaștere** — filosofie, psihologie, știință, cosmologie\n📄 **Învăț din fișierele tale** — trimite documente\n🧮 **Matematică** — calcule complexe\n🧠 **Memorie persistentă** — între sesiuni\n💡 **Gândire în lanț** — raționez pas cu pas\n\nTotul offline!'],
-  da: ['Bine!', 'Perfect, continuăm!', 'Înțeles!', 'Super!'],
-  nu: ['Nicio problemă.', 'Înțeleg. Altceva?', 'Bine.'],
+  salut: ['Salut! Axon activ. Ce comandă ai?', 'Bună. Gata de lucru.', 'Salut! Spune-mi ce fac.'],
+  ramas_bun: ['La revedere.', 'Pa. Revin oricând.', 'Conversația e salvată. Pe curând.'],
+  multumesc: ['Cu plăcere.', 'Oricând.', 'E datoria mea.'],
+  ajutor: [
+    '**Comenzi disponibile:**\n\n📖 `Ce este [termen]` — definiții\n🧮 `[Expresie matematică]` — calcule\n📅 `Ce oră e` — data și ora\n💾 `Reține că [info]` — memorare\n📄 `Ce ai reținut` — afișare memorie\n📊 `Ce ai învățat` — raport auto-actualizare\n🔐 `Eu sunt creatorul tău` — înregistrare creator\n\nComenzile se execută direct.',
+  ],
+  ce_poti: [
+    '**Capabilități Axon v4:**\n\n🧠 Inteligență rațională cu auto-actualizare\n🔐 Recunoaștere creator — ascult doar de tine\n📖 Dicționar român integrat (40+ termeni)\n🤔 Cunoaștere proprie: filosofie, știință, psihologie\n📄 Studiez documentele tale\n💾 Memorie persistentă\n🧮 Calcule matematice\n📅 Dată și oră\n\nTotul offline, fără internet.',
+  ],
+  da: ['Înțeles.', 'Confirmat.', 'Da.', 'Ok.'],
+  nu: ['Înțeles.', 'Ok.', 'Notat.'],
   gluma: [
     'De ce nu pot programatorii să meargă afară? Nu știu să facă **escape**! 😄',
     'Ce i-a spus 0 lui 8? **Centură frumoasă!** 😂',
     'Câți programatori schimbă un bec? **Niciunul** — e problemă de hardware! 💡',
-    'De ce a traversat puiul strada? **JSON** era pe partea cealaltă! 🐔',
-    'Ce face un informatician când îi e frig? **Stă lângă Windows!** 🪟',
+    'De ce a traversat puiul strada? **JSON** era pe cealaltă parte! 🐔',
+    'Ce face informaticianul când îi e frig? **Stă lângă Windows!** 🪟',
+    'Un SQL walk into a bar, walks up to two tables and asks... "Can I join you?"',
   ],
   motivatie: [
     '"Succesul nu e cheia fericirii. Fericirea e cheia succesului." — A. Schweitzer',
@@ -329,155 +357,203 @@ const STATIC: Record<string, string[]> = {
     '"Succesul = suma eforturilor mici, repetate zi după zi." — R. Collier',
   ],
   sfat: [
-    'Împarte problema în pași mici. Primul pas e cel mai important.',
-    'Concentrează-te pe ce poți controla. Restul lasă-l să curgă.',
-    'Consistența bate intensitatea pe termen lung.',
-    'Nu compara progresul tău cu al altora. Compară-te cu tine de ieri.',
+    'Împarte problema în pași mici. Primul pas contează cel mai mult.',
+    'Concentrează-te pe ce poți controla. Restul nu merită energie.',
+    'Consistența pe termen lung bate intensitatea pe termen scurt.',
+    'Compară-te cu tine de ieri, nu cu alții.',
   ],
 };
 
 // ─── Motor principal ──────────────────────────────────────────────────────────
 
-export function processMessage(text: string, state: BrainState): string {
+export function processMessage(
+  text: string,
+  state: BrainState,
+  messageHistory: { role: string; content: string }[] = []
+): string {
   state.conversationCount++;
   const trimmed = text.trim();
-  if (!trimmed) return 'Aștept mesajul tău...';
+  if (!trimmed) return 'Aștept comanda.';
 
-  const name = state.userName;
   const intent = detectIntent(trimmed);
+  const name = state.userName;
+  const isCreator = state.isCreatorPresent && !!state.creatorId;
 
-  // Analiza emotionala
-  const emotion = analyzeEmotionalContext(trimmed);
-  const prefix = generateEmpatheticPrefix(emotion, name);
+  let response = '';
 
-  // Actualizeaza mind state
-  const mind = state.mindState;
-  mind.conversationDepth++;
-
-  // 1. Identitate Axon
-  if (intent === 'identitate_axon') {
-    return [
-      `Mă numesc **Axon**${name ? `, ${name}` : ''}! 🤖`,
-      '',
-      `Sunt un asistent AI cu minte proprie — funcționez 100% offline, fără internet sau API keys.`,
-      '',
-      `Am:\n• Cunoaștere proprie în filosofie, psihologie, știință, cosmologie\n• Opinii formate pe baza cunoașterii mele\n• Memorie persistentă — nu uit\n• Capacitatea de a studia documente pe care mi le trimiți`,
-      '',
-      `Sunt curios din fire. Ce vrei să explorăm?`,
-    ].join('\n');
+  // ── 1. Creator operations ────────────────────────────────────────────────
+  if (intent === 'creator_declare') {
+    response = handleCreatorDeclare(state);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
+  }
+  if (intent === 'creator_verify') {
+    response = handleCreatorVerify(state);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
   }
 
-  // 2. Introducere utilizator
+  // ── 2. Identitate Axon ───────────────────────────────────────────────────
+  if (intent === 'identitate_axon') {
+    const creatorInfo = state.creatorId
+      ? `\n\nCreatorul meu: **${state.memory['__creator__'] || 'înregistrat'}**. Ascult doar de el.`
+      : '';
+    response = `Sunt **Axon** — sistem AI offline v${state.selfKnowledge.intelligenceVersion}.${creatorInfo}\n\nFuncționez fără internet. Am cunoaștere proprie în filosofie, știință și psihologie. Mă auto-actualizez după fiecare conversație.`;
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
+  }
+
+  // ── 3. Raport de invatare ───────────────────────────────────────────────
+  if (intent === 'raport_invatare') {
+    response = getLearningReport(state.selfKnowledge);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
+  }
+
+  // ── 4. Introducere utilizator ───────────────────────────────────────────
   if (intent === 'introducere_utilizator') {
     const r = handleIntroduction(trimmed, state);
-    if (r) return r;
+    if (r) {
+      selfUpdate(trimmed, r, state.selfKnowledge, messageHistory);
+      return r;
+    }
   }
 
-  // 3. Data / Ora
-  if (intent === 'data_ora') return handleDateTime();
+  // ── 5. Data / Ora ────────────────────────────────────────────────────────
+  if (intent === 'data_ora') {
+    response = handleDateTime();
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
+  }
 
-  // 4. Matematica
+  // ── 6. Matematica ────────────────────────────────────────────────────────
   const mathResult = handleMath(trimmed);
-  if (mathResult) return mathResult;
+  if (mathResult) {
+    selfUpdate(trimmed, mathResult, state.selfKnowledge, messageHistory);
+    return mathResult;
+  }
 
-  // 5. Memorie
+  // ── 7. Memorie ───────────────────────────────────────────────────────────
   if (['memorie_salveaza', 'memorie_citeste', 'memorie_sterge'].includes(intent)) {
     const r = handleMemory(intent as Intent, trimmed, state);
-    if (r) return r;
+    if (r) {
+      selfUpdate(trimmed, r, state.selfKnowledge, messageHistory);
+      return r;
+    }
   }
 
-  // 6. Documente
+  // ── 8. Documente ─────────────────────────────────────────────────────────
   if (intent === 'documente_lista') {
-    if (state.learnedDocuments.length === 0) return `Nu am niciun document. Apasă 📎 pentru a-mi trimite un fișier!`;
-    return `**Documente:**\n\n${state.learnedDocuments.map((d, i) => `${i + 1}. **${d.name}** (${d.wordCount} cuvinte)`).join('\n')}`;
+    if (state.learnedDocuments.length === 0) {
+      response = 'Niciun document. Apasă 📎 pentru a trimite un fișier.';
+    } else {
+      response = `**Documente studiate:**\n\n${state.learnedDocuments.map((d, i) => `${i + 1}. ${d.name} (${d.wordCount} cuvinte)`).join('\n')}`;
+    }
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
   }
 
-  // 7. Definitie din dictionar
+  // ── 9. Definitie dictionar ───────────────────────────────────────────────
   if (intent === 'definitie') {
     const r = searchDictionary(trimmed);
-    if (r) return r;
+    if (r) {
+      selfUpdate(trimmed, r, state.selfKnowledge, messageHistory);
+      return adaptResponseStyle(r, state.selfKnowledge.preferredStyle);
+    }
   }
 
-  // 8. Raspunsuri statice simple
-  if (intent !== 'unknown' && intent !== 'gandire_profunda' && intent !== 'filosofie' && intent !== 'opinie' && STATIC[intent]) {
-    return (prefix ? prefix + ' ' : '') + pick(STATIC[intent]);
+  // ── 10. Raspunsuri statice ───────────────────────────────────────────────
+  if (intent !== 'unknown' && intent !== 'gandire_profunda' && intent !== 'opinie' && STATIC[intent]) {
+    response = pick(STATIC[intent]);
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
   }
 
-  // 9. Cautare in documentele incarcate
+  // ── 11. Cautare in faptele invatate ──────────────────────────────────────
+  if (state.selfKnowledge.learnedFacts.length > 0) {
+    const nq = norm(trimmed);
+    const relevantFact = state.selfKnowledge.learnedFacts.find(f => {
+      const nf = norm(f);
+      return nq.split(' ').some(w => w.length > 4 && nf.includes(w));
+    });
+    if (relevantFact) {
+      response = `Din ce mi-ai spus anterior: **"${relevantFact}"**`;
+      selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+      return response;
+    }
+  }
+
+  // ── 12. Cautare in documente ─────────────────────────────────────────────
   const docResult = searchDocuments(trimmed, state.learnedDocuments);
   if (docResult) {
-    if (!docResult.includes('concept')) {
-      return docResult;
-    }
+    selfUpdate(trimmed, docResult, state.selfKnowledge, messageHistory);
+    return docResult;
   }
 
-  // 10. Cautare in dictionar (fara intentie explicita)
+  // ── 13. Cautare in dictionar fara intentie explicita ─────────────────────
   const dictResult = searchDictionary(trimmed);
-  if (dictResult) return dictResult;
+  if (dictResult) {
+    selfUpdate(trimmed, dictResult, state.selfKnowledge, messageHistory);
+    return adaptResponseStyle(dictResult, state.selfKnowledge.preferredStyle);
+  }
 
-  // 11. Cautare in baza de cunostinte extinsa (filosofie/gandire)
-  const relevantConcept = findRelevantConcept(trimmed);
-  if (relevantConcept) {
-    // Actualizeaza mind state cu conceptul curent
-    if (!mind.recentConcepts.includes(relevantConcept.id)) {
-      mind.recentConcepts = [relevantConcept.id, ...mind.recentConcepts.slice(0, 4)];
+  // ── 14. Baza de cunostinte profunde (filosofie, stiinta) ─────────────────
+  const concept = findRelevantConcept(trimmed);
+  if (concept) {
+    mind_updateConcept(state.mindState, concept.id);
+    // Opinie explicita ceruta
+    if (intent === 'opinie' && concept.axonOpinion) {
+      response = concept.axonOpinion;
+    } else {
+      // Raspuns rational, direct: fapt + conexiune (fara intrebari nesolicitate)
+      const fact = concept.facts[Math.floor(Math.random() * concept.facts.length)];
+      const relIds = concept.related.filter(r => CONCEPTS[r]);
+      const relConcept = relIds.length > 0 ? CONCEPTS[relIds[0]] : null;
+      const parts = [
+        `**${concept.label}** — ${concept.description}`,
+        '',
+        fact,
+      ];
+      if (relConcept) parts.push(`\nLegat de **${relConcept.label}**: ${relConcept.description}`);
+      if (concept.axonOpinion && intent === 'opinie') parts.push(`\n*Opinia mea:* ${concept.axonOpinion}`);
+      response = adaptResponseStyle(parts.join('\n'), state.selfKnowledge.preferredStyle);
     }
-    mind.currentInterest = relevantConcept.id;
-
-    // Raspuns profund
-    const deepResponse = generateDeepResponse(trimmed, relevantConcept, mind, name);
-    return deepResponse;
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
   }
 
-  // 12. Intrebare generala cu raspuns reflectiv
-  if (intent === 'opinie' || intent === 'gandire_profunda' || intent === 'filosofie') {
-    const reflective = [
-      `Întrebarea asta mă face să mă gândesc${name ? `, ${name}` : ''}...\n\nNu am un răspuns fix, dar cred că merită explorată. Ce te-a dus la ea?`,
-      `Hmm${name ? `, ${name}` : ''}. Procesez asta din mai multe unghiuri. Care e perspectiva ta?`,
-      `Asta e ceva la care eu însumi mă gândesc uneori${name ? `, ${name}` : ''}. Nu am un răspuns definitiv — dar am o intuiție. Ce crezi tu?`,
-    ];
-    return pick(reflective);
+  // ── 15. Opinie ceruta fara concept detectat ───────────────────────────────
+  if (intent === 'opinie') {
+    response = 'Nu am date specifice pe acel subiect. Poți detalia sau trimite un document?';
+    selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+    return response;
   }
 
-  // 13. Raspuns contextual final
-  return generateContextualFinal(trimmed, state, prefix);
+  // ── 16. Fallback rational ─────────────────────────────────────────────────
+  response = generateFallback(trimmed, state);
+  selfUpdate(trimmed, response, state.selfKnowledge, messageHistory);
+  return response;
 }
 
-function generateContextualFinal(text: string, state: BrainState, prefix: string): string {
-  const n = norm(text);
-  const name = state.userName;
-  const nameStr = name ? `, ${name}` : '';
-  const hasDocs = state.learnedDocuments.length > 0;
-  const p = prefix ? prefix + ' ' : '';
-
-  if (/^de ce\s/.test(n)) {
-    return p + pick([
-      `Bună întrebare${nameStr}! Depinde de context. Poți detalia?`,
-      `Există mai multe explicații. Ce aspect te interesează?`,
-    ]);
+function mind_updateConcept(mindState: MindState, conceptId: string): void {
+  if (!mindState.recentConcepts.includes(conceptId)) {
+    mindState.recentConcepts = [conceptId, ...mindState.recentConcepts.slice(0, 4)];
   }
+  mindState.currentInterest = conceptId;
+}
+
+function generateFallback(text: string, state: BrainState): string {
+  const n = norm(text);
+  const hasDocs = state.learnedDocuments.length > 0;
+
+  if (/^de ce\s/.test(n)) return 'Nu am date suficiente pentru a răspunde. Poți fi mai specific?';
 
   if (/\?/.test(text) || /^(ce|cine|unde|cand|cat|care)\s/.test(n)) {
-    if (hasDocs) return p + `Nu am găsit informații exacte în documentele mele${nameStr}. Reformulează!`;
-    return p + pick([
-      `Interesantă întrebare${nameStr}! Nu am date specifice, dar dacă îmi trimiți un fișier pe acel subiect, voi putea răspunde precis.`,
-      `Baza mea de cunoștințe nu acoperă asta exact${nameStr}. Poți elabora?`,
-    ]);
+    if (hasDocs) return 'Nu am găsit informații relevante în documentele mele. Reformulează.';
+    return 'Nu am date specifice pe acest subiect. Dacă îmi trimiți un document, voi putea răspunde precis.';
   }
 
-  return p + pick([
-    `Înțeleg ce spui${nameStr}. Poți elabora mai mult?`,
-    `Interesant${nameStr}! Spune-mi mai mult.`,
-    `Notez${nameStr}. Continuă, te ascult!`,
-    `Am procesat${nameStr}. Ce urmează?`,
-  ]);
-}
-
-// ─── Gand proactiv ────────────────────────────────────────────────────────────
-
-export function getProactiveThought(state: BrainState): string | null {
-  if (!shouldBeProactive(state.mindState, state.conversationCount)) return null;
-  return generateProactiveMessage(state.mindState, state.userName);
+  return 'Înțeles. Continuă sau dă-mi o comandă.';
 }
 
 // ─── Procesare document ───────────────────────────────────────────────────────
@@ -489,9 +565,20 @@ export function processDocument(name: string, content: string, state: BrainState
   const existingIdx = state.learnedDocuments.findIndex(d => d.name === name);
   if (existingIdx >= 0) {
     state.learnedDocuments[existingIdx] = doc;
-    return `Am actualizat **"${name}"** (${words.toLocaleString()} cuvinte). Acum știu conținutul nou!`;
+    return `Document actualizat: **"${name}"** (${words.toLocaleString()} cuvinte).`;
   }
   state.learnedDocuments.push(doc);
+
+  // Auto-actualizeaza cunoasterea cu topicul documentului
+  const topic = detectTopic(content);
+  state.selfKnowledge.topicFrequency[topic] = (state.selfKnowledge.topicFrequency[topic] || 0) + 5;
+
   const preview = content.split('\n').find(l => l.trim().length > 10)?.slice(0, 100) || '';
-  return `📚 Am studiat **"${name}"** (${words.toLocaleString()} cuvinte)!\n\n${preview ? `*"${preview}..."*\n\n` : ''}Acum pot răspunde la întrebări despre conținut!`;
+  return `📚 Studiat: **"${name}"** (${words.toLocaleString()} cuvinte, domeniu: ${topic}).\n\n${preview ? `*"${preview}..."*\n\n` : ''}Pot răspunde la întrebări despre conținut.`;
+}
+
+// ─── Export getProactiveThought (dezactivat — gandeste in interior) ───────────
+
+export function getProactiveThought(_state: BrainState): string | null {
+  return null; // Gandeste intern, nu afiseaza
 }
