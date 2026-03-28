@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "AI Brain - Asistent Offline"
+version = "1.0.0"
+id = "artifacts/ai-brain"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 19788
+
+[services.development]
+run = "pnpm --filter @workspace/ai-brain run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ai-brain", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/ai-brain", "run", "serve" ]
+
+[services.env]
+PORT = "19788"
+BASE_PATH = "/"
