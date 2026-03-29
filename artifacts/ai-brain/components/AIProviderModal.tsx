@@ -61,6 +61,7 @@ export default function AIProviderModal({ visible, onClose }: Props) {
   const [successMsg, setSuccessMsg] = useState('');
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showOpenAIKey, setShowOpenAIKey] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   // Sincronizează inputurile cu setările persitate la fiecare deschidere a modalului
   useEffect(() => {
@@ -68,6 +69,7 @@ export default function AIProviderModal({ visible, onClose }: Props) {
       setGeminiInput(settings.geminiKey);
       setOpenaiInput(settings.openaiKey);
       setSuccessMsg('');
+      setLocalError('');
     }
   }, [visible, settings.geminiKey, settings.openaiKey]);
 
@@ -103,10 +105,17 @@ export default function AIProviderModal({ visible, onClose }: Props) {
   const handleTestGemini = async () => {
     clearError();
     setSuccessMsg('');
-    const ok = await testKey('gemini', geminiInput);
+    const trimmed = geminiInput.trim();
+    // Validare format cheie Gemini
+    if (!trimmed.startsWith('AIzaSy') || trimmed.length < 35) {
+      setLocalError('Format incorect. Cheia Gemini trebuie să înceapă cu "AIzaSy" și are ~39 caractere. Obții gratuit de la aistudio.google.com');
+      return;
+    }
+    setLocalError('');
+    const ok = await testKey('gemini', trimmed);
     if (ok) {
-      await saveGeminiKey(geminiInput);
-      setSuccessMsg('Cheie Gemini salvată și validată!');
+      await saveGeminiKey(trimmed);
+      setSuccessMsg('✅ Cheie Gemini salvată și validată!');
       setTimeout(() => setSuccessMsg(''), 3000);
     }
   };
@@ -114,10 +123,17 @@ export default function AIProviderModal({ visible, onClose }: Props) {
   const handleTestOpenAI = async () => {
     clearError();
     setSuccessMsg('');
-    const ok = await testKey('openai', openaiInput);
+    const trimmed = openaiInput.trim();
+    // Validare format cheie OpenAI
+    if (!trimmed.startsWith('sk-') || trimmed.length < 40) {
+      setLocalError('Format incorect. Cheia OpenAI trebuie să înceapă cu "sk-" și are 51+ caractere. Obții de la platform.openai.com/api-keys');
+      return;
+    }
+    setLocalError('');
+    const ok = await testKey('openai', trimmed);
     if (ok) {
-      await saveOpenAIKey(openaiInput);
-      setSuccessMsg('Cheie ChatGPT salvată și validată!');
+      await saveOpenAIKey(trimmed);
+      setSuccessMsg('✅ Cheie ChatGPT salvată și validată!');
       setTimeout(() => setSuccessMsg(''), 3000);
     }
   };
@@ -125,8 +141,11 @@ export default function AIProviderModal({ visible, onClose }: Props) {
   const handleClose = () => {
     clearError();
     setSuccessMsg('');
+    setLocalError('');
     onClose();
   };
+
+  const displayError = localError || testError;
 
   return (
     <Modal
@@ -192,7 +211,7 @@ export default function AIProviderModal({ visible, onClose }: Props) {
                 <TextInput
                   style={styles.keyInput}
                   value={geminiInput}
-                  onChangeText={setGeminiInput}
+                  onChangeText={v => { setGeminiInput(v); setLocalError(''); clearError(); }}
                   placeholder="AIzaSy... (lipește sau scrie)"
                   placeholderTextColor={colors.textMuted}
                   secureTextEntry={!showGeminiKey}
@@ -229,7 +248,7 @@ export default function AIProviderModal({ visible, onClose }: Props) {
                 <TextInput
                   style={styles.keyInput}
                   value={openaiInput}
-                  onChangeText={setOpenaiInput}
+                  onChangeText={v => { setOpenaiInput(v); setLocalError(''); clearError(); }}
                   placeholder="sk-... (lipește sau scrie)"
                   placeholderTextColor={colors.textMuted}
                   secureTextEntry={!showOpenAIKey}
@@ -254,10 +273,10 @@ export default function AIProviderModal({ visible, onClose }: Props) {
           </View>
 
           {/* Feedback */}
-          {testError ? (
+          {displayError ? (
             <View style={styles.errorBox}>
               <Feather name="alert-circle" size={14} color={colors.error} />
-              <Text style={styles.errorText}>{testError}</Text>
+              <Text style={styles.errorText}>{displayError}</Text>
             </View>
           ) : null}
           {successMsg ? (
