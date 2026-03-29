@@ -261,10 +261,14 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     try {
       const domain = detectTopicCategory(query);
       const label = `${query.slice(0, 48)} [${provider.slice(0, 20)}]`.slice(0, 80);
+      // Păstrăm sursa exactă: 'web', 'gemini', 'openai' etc.
+      const canonicalSource = (['web', 'gemini', 'openai'] as string[]).includes(provider)
+        ? provider
+        : 'web';
       await insertKnowledgeEntry({
         content: resultText.slice(0, 800),
         label,
-        source: 'web',
+        source: canonicalSource,
         domain: domain || 'general',
         importance: 0.6,
       });

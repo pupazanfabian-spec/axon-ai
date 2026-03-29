@@ -34,6 +34,8 @@ const SOURCE_LABELS: Record<string, { label: string; color: string; icon: Feathe
   web: { label: 'Web', color: colors.accent, icon: 'globe' },
   user: { label: 'Utilizator', color: colors.warning, icon: 'user' },
   dynamic_concept: { label: 'Concept', color: colors.primary, icon: 'cpu' },
+  gemini: { label: 'Gemini', color: '#4285F4', icon: 'zap' },
+  openai: { label: 'ChatGPT', color: '#10A37F', icon: 'message-circle' },
 };
 
 const DEFAULT_SOURCE_META: { label: string; color: string; icon: FeatherIconName } = {

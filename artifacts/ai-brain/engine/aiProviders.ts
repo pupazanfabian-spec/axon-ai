@@ -53,6 +53,13 @@ export async function saveProviderSettings(settings: AIProviderSettings): Promis
   ]);
 }
 
+const VALID_PROVIDERS: AIProvider[] = ['none', 'gemini', 'openai'];
+
+function normalizeProvider(raw: string | null): AIProvider {
+  if (raw && (VALID_PROVIDERS as string[]).includes(raw)) return raw as AIProvider;
+  return 'none';
+}
+
 export async function loadProviderSettings(): Promise<AIProviderSettings> {
   const [geminiKey, openaiKey, activeProvider] = await Promise.all([
     secureGet(GEMINI_KEY_STORAGE),
@@ -62,7 +69,7 @@ export async function loadProviderSettings(): Promise<AIProviderSettings> {
   return {
     geminiKey: geminiKey ?? '',
     openaiKey: openaiKey ?? '',
-    activeProvider: (activeProvider as AIProvider) ?? 'none',
+    activeProvider: normalizeProvider(activeProvider),
   };
 }
 
