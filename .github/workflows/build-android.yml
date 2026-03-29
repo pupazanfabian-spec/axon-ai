@@ -6,11 +6,12 @@ on:
     branches: [main]
     paths:
       - 'artifacts/ai-brain/**'
+      - '.github/workflows/build-android.yml'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
@@ -36,11 +37,29 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('artifacts/ai-brain/android/**/*.gradle*') }}
+          restore-keys: gradle-
+
       - name: Expo Prebuild
         working-directory: artifacts/ai-brain
         run: npx expo prebuild --platform android --clean --no-install
         env:
           EXPO_PUBLIC_LLM_ENABLED: 'true'
+
+      - name: Set Gradle memory in gradle.properties
+        working-directory: artifacts/ai-brain/android
+        run: |
+          echo "" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=2g -XX:+UseParallelGC" >> gradle.properties
+          echo "org.gradle.parallel=true" >> gradle.properties
+          echo "org.gradle.caching=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
 
       - name: Generate release keystore
         working-directory: artifacts/ai-brain/android
@@ -64,10 +83,7 @@ jobs:
 
       - name: Build Release APK
         working-directory: artifacts/ai-brain/android
-        run: ./gradlew assembleRelease --no-daemon
-        env:
-          GRADLE_OPTS: '-Xmx4g -XX:MaxMetaspaceSize=512m'
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Rename and stage APK
         run: |
@@ -84,10 +100,5 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## ✅ Axon AI v3.1.0 APK Ready" >> $GITHUB_STEP_SUMMARY
+          echo "## Axon AI v3.1.0 APK Ready" >> $GITHUB_STEP_SUMMARY
           echo "Descarcă APK-ul din secțiunea **Artifacts** de mai sus." >> $GITHUB_STEP_SUMMARY
-          echo "### Funcții noi:" >> $GITHUB_STEP_SUMMARY
-          echo "- App Builder Intelligence (500+ DEV_CONCEPTS)" >> $GITHUB_STEP_SUMMARY
-          echo "- Dev Mode cu syntax highlighting" >> $GITHUB_STEP_SUMMARY
-          echo "- Project Switcher" >> $GITHUB_STEP_SUMMARY
-          echo "- OTA update support" >> $GITHUB_STEP_SUMMARY
