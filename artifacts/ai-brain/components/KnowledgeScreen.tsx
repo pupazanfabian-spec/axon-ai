@@ -181,7 +181,8 @@ export default function KnowledgeScreen({ visible, onClose }: Props) {
     );
   }, [handleDeleteEntry]);
 
-  const keyExtractor = useCallback((item: KnowledgeEntry) => String(item.id ?? Math.random()), []);
+  const keyExtractor = useCallback((item: KnowledgeEntry, index: number) =>
+    item.id != null ? String(item.id) : `entry-${index}`, []);
 
   return (
     <Modal

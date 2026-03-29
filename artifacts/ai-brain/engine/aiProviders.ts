@@ -24,12 +24,20 @@ export interface AIProviderSettings {
 
 // ─── Helper SecureStore cu fallback AsyncStorage (web / simulatoare) ────────
 
+// Tracked so UI can surface a warning when secure storage is unavailable
+let _secureStoreFailed = false;
+export function isSecureStoreFallbackActive(): boolean {
+  return _secureStoreFailed;
+}
+
 async function secureGet(key: string): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(key);
+    const val = await SecureStore.getItemAsync(key);
+    return val;
   } catch (err) {
+    _secureStoreFailed = true;
     if (__DEV__ && Platform.OS !== 'web') {
-      console.warn(`[Axon] SecureStore.getItemAsync("${key}") unavailable, using AsyncStorage fallback:`, err);
+      console.warn(`[Axon] SecureStore unavailable, using AsyncStorage fallback for "${key}":`, err);
     }
     return AsyncStorage.getItem(`@secure_${key}`);
   }
@@ -42,9 +50,12 @@ async function secureSet(key: string, value: string): Promise<void> {
     } else {
       await SecureStore.deleteItemAsync(key);
     }
+    // Clear flag if SecureStore starts working again
+    _secureStoreFailed = false;
   } catch (err) {
+    _secureStoreFailed = true;
     if (__DEV__ && Platform.OS !== 'web') {
-      console.warn(`[Axon] SecureStore.setItemAsync("${key}") unavailable, using AsyncStorage fallback:`, err);
+      console.warn(`[Axon] SecureStore unavailable, using AsyncStorage fallback for "${key}":`, err);
     }
     await AsyncStorage.setItem(`@secure_${key}`, value);
   }

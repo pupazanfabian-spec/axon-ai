@@ -11,6 +11,7 @@ import {
   callActiveProvider,
   loadProviderSettings, saveProviderSettings,
   testGeminiKey, testOpenAIKey,
+  isSecureStoreFallbackActive,
   AXON_SYSTEM_PROMPT,
 } from '@/engine/aiProviders';
 
@@ -21,6 +22,7 @@ interface AIProviderContextType {
   isReady: boolean;
   isTesting: boolean;
   testError: string;
+  secureStoreFallback: boolean;
 
   setActiveProvider: (provider: AIProvider) => Promise<void>;
   saveGeminiKey: (key: string) => Promise<void>;
@@ -102,9 +104,12 @@ export function AIProviderProvider({ children }: { children: React.ReactNode }) 
 
   const clearError = useCallback(() => setTestError(''), []);
 
+  // Check SecureStore fallback status after settings load
+  const secureStoreFallback = isReady ? isSecureStoreFallbackActive() : false;
+
   return (
     <AIProviderContext.Provider value={{
-      settings, isReady, isTesting, testError,
+      settings, isReady, isTesting, testError, secureStoreFallback,
       setActiveProvider, saveGeminiKey, saveOpenAIKey, testKey, generate, clearError,
     }}>
       {children}

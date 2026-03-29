@@ -51,7 +51,7 @@ const PROVIDER_OPTIONS: { id: AIProvider; label: string; icon: FeatherIconName; 
 
 export default function AIProviderModal({ visible, onClose }: Props) {
   const {
-    settings, isTesting, testError,
+    settings, isTesting, testError, secureStoreFallback,
     setActiveProvider, saveGeminiKey, saveOpenAIKey, testKey, clearError,
   } = useAIProvider();
 
@@ -253,6 +253,14 @@ export default function AIProviderModal({ visible, onClose }: Props) {
             </View>
           ) : null}
 
+          {secureStoreFallback && (
+            <View style={[styles.infoBox, { borderColor: colors.warning + '55', backgroundColor: colors.warning + '18' }]}>
+              <Feather name="alert-triangle" size={14} color={colors.warning} />
+              <Text style={[styles.infoText, { color: colors.warning }]}>
+                Stocarea securizată (Keychain/Keystore) nu este disponibilă pe acest dispozitiv. Cheile sunt salvate în stocarea locală standard — mai puțin securizată.
+              </Text>
+            </View>
+          )}
           <View style={styles.infoBox}>
             <Feather name="shield" size={14} color={colors.textMuted} />
             <Text style={styles.infoText}>
