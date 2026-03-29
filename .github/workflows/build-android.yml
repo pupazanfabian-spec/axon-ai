@@ -1,0 +1,104 @@
+name: Build Axon Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'artifacts/ai-brain/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Expo Prebuild (generate Android project)
+        working-directory: artifacts/ai-brain
+        run: npx expo prebuild --platform android --clean --no-install
+        env:
+          EXPO_PUBLIC_LLM_ENABLED: 'true'
+
+      - name: Generate release keystore
+        working-directory: artifacts/ai-brain/android
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore axon-release.keystore \
+            -alias axon \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass axon2024 \
+            -keypass axon2024 \
+            -dname "CN=Axon AI, OU=Mobile, O=Axon, L=RO, S=RO, C=RO"
+
+      - name: Configure signing in build.gradle
+        working-directory: artifacts/ai-brain/android
+        run: |
+          cat >> app/build.gradle << 'EOF'
+
+          android.signingConfigs.create("axonRelease") {
+            storeFile file("../axon-release.keystore")
+            storePassword "axon2024"
+            keyAlias "axon"
+            keyPassword "axon2024"
+          }
+          android.buildTypes.release.signingConfig android.signingConfigs.axonRelease
+          EOF
+
+      - name: Build Release APK
+        working-directory: artifacts/ai-brain/android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: '-Xmx4g -XX:MaxMetaspaceSize=512m'
+
+      - name: Find APK
+        id: find_apk
+        run: |
+          APK=$(find artifacts/ai-brain/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "apk_path=$APK" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK"
+
+      - name: Rename APK
+        run: |
+          cp "${{ steps.find_apk.outputs.apk_path }}" Axon-AI-v3.1.0.apk
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Axon-AI-v3.1.0
+          path: Axon-AI-v3.1.0.apk
+          retention-days: 30
+
+      - name: Build summary
+        run: |
+          echo "## Axon AI v3.1.0 Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "APK ready for download from the Artifacts section above." >> $GITHUB_STEP_SUMMARY
+          echo "**Features:** App Builder Intelligence, 500+ DEV_CONCEPTS, Dev Mode, Project Switcher, Syntax Highlighting" >> $GITHUB_STEP_SUMMARY
