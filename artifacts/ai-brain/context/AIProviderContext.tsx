@@ -52,22 +52,28 @@ export function AIProviderProvider({ children }: { children: React.ReactNode }) 
     }).catch(() => setIsReady(true));
   }, []);
 
-  const persist = useCallback(async (newSettings: AIProviderSettings) => {
-    setSettings(newSettings);
-    await saveProviderSettings(newSettings).catch(() => {});
+  const persist = useCallback(async (updater: (prev: AIProviderSettings) => AIProviderSettings) => {
+    let next!: AIProviderSettings;
+    setSettings(prev => {
+      next = updater(prev);
+      return next;
+    });
+    // Wait one tick so `next` is populated
+    await Promise.resolve();
+    await saveProviderSettings(next).catch(() => {});
   }, []);
 
   const setActiveProvider = useCallback(async (provider: AIProvider) => {
-    await persist({ ...settings, activeProvider: provider });
-  }, [settings, persist]);
+    await persist(prev => ({ ...prev, activeProvider: provider }));
+  }, [persist]);
 
   const saveGeminiKey = useCallback(async (key: string) => {
-    await persist({ ...settings, geminiKey: key.trim() });
-  }, [settings, persist]);
+    await persist(prev => ({ ...prev, geminiKey: key.trim() }));
+  }, [persist]);
 
   const saveOpenAIKey = useCallback(async (key: string) => {
-    await persist({ ...settings, openaiKey: key.trim() });
-  }, [settings, persist]);
+    await persist(prev => ({ ...prev, openaiKey: key.trim() }));
+  }, [persist]);
 
   const testKey = useCallback(async (provider: 'gemini' | 'openai', key: string): Promise<boolean> => {
     setIsTesting(true);

@@ -28,7 +28,7 @@ interface Props {
   onClose: () => void;
 }
 
-type FilterMode = 'all' | 'web' | 'user' | 'dynamic_concept';
+type FilterMode = 'all' | 'web' | 'user' | 'dynamic_concept' | 'gemini' | 'openai';
 
 const SOURCE_LABELS: Record<string, { label: string; color: string; icon: FeatherIconName }> = {
   web: { label: 'Web', color: colors.accent, icon: 'globe' },
@@ -244,20 +244,35 @@ export default function KnowledgeScreen({ visible, onClose }: Props) {
 
         {/* Filter chips */}
         <View style={styles.filterRow}>
-          {(['all', 'web', 'user', 'dynamic_concept'] as FilterMode[]).map(f => (
-            <TouchableOpacity
-              key={f}
-              style={[styles.chip, filter === f && styles.chipActive]}
-              onPress={() => setFilter(f)}
-            >
-              <Text style={[styles.chipText, filter === f && styles.chipTextActive]}>
-                {f === 'all' ? 'Toate'
-                  : f === 'web' ? 'Web'
-                  : f === 'user' ? 'Personal'
-                  : 'Concepte'}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {(
+            ['all', 'web', 'user', 'dynamic_concept', 'gemini', 'openai'] as FilterMode[]
+          ).map(f => {
+            const label =
+              f === 'all' ? 'Toate'
+              : f === 'web' ? 'Web'
+              : f === 'user' ? 'Personal'
+              : f === 'dynamic_concept' ? 'Concepte'
+              : f === 'gemini' ? 'Gemini'
+              : 'ChatGPT';
+            const activeColor =
+              f === 'gemini' ? '#4285F4'
+              : f === 'openai' ? '#10A37F'
+              : colors.primary;
+            return (
+              <TouchableOpacity
+                key={f}
+                style={[
+                  styles.chip,
+                  filter === f && [styles.chipActive, { borderColor: activeColor, backgroundColor: activeColor + '22' }],
+                ]}
+                onPress={() => setFilter(f)}
+              >
+                <Text style={[styles.chipText, filter === f && [styles.chipTextActive, { color: activeColor }]]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* List */}
