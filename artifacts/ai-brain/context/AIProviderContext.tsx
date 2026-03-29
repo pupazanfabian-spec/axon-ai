@@ -10,7 +10,7 @@ import {
   AIProvider, AIProviderSettings,
   callActiveProvider,
   loadProviderSettings, saveProviderSettings,
-  testGeminiKey, testOpenAIKey,
+  testGeminiKeyDetailed, testOpenAIKeyDetailed,
   isSecureStoreFallbackActive,
   AXON_SYSTEM_PROMPT,
   type ConversationTurn,
@@ -82,13 +82,14 @@ export function AIProviderProvider({ children }: { children: React.ReactNode }) 
     setIsTesting(true);
     setTestError('');
     try {
-      const ok = provider === 'gemini'
-        ? await testGeminiKey(key.trim())
-        : await testOpenAIKey(key.trim());
-      if (!ok) setTestError('Cheia nu este validă sau nu există conexiune la internet.');
+      const { ok, error } = provider === 'gemini'
+        ? await testGeminiKeyDetailed(key.trim())
+        : await testOpenAIKeyDetailed(key.trim());
+      if (!ok) setTestError(error || 'Cheia nu este validă sau nu există conexiune la internet.');
       return ok;
-    } catch {
-      setTestError('Eroare la testarea cheii.');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setTestError(`Eroare la testare: ${msg.slice(0, 100)}`);
       return false;
     } finally {
       setIsTesting(false);

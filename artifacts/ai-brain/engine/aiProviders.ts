@@ -91,14 +91,16 @@ export async function loadProviderSettings(): Promise<AIProviderSettings> {
   };
 }
 
-// ─── Gemini (2.0 Flash Lite → 1.5 Flash fallback) ───────────────────────────
+// ─── Gemini (2.0 Flash → 1.5 Flash fallback chain) ──────────────────────────
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const GEMINI_MODELS = [
-  'gemini-2.0-flash-lite',
   'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash-exp',
   'gemini-1.5-flash',
   'gemini-1.5-flash-latest',
+  'gemini-1.5-pro-latest',
 ];
 
 const TIMEOUT_MS = 25000;
@@ -235,9 +237,9 @@ export async function callChatGPT(
     messages.push({ role: 'user', content: prompt });
 
     const body = {
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       messages,
-      max_tokens: 800,
+      max_tokens: 1200,
       temperature: 0.7,
       top_p: 0.9,
     };
@@ -253,7 +255,10 @@ export async function callChatGPT(
 
     if (!resp.ok) {
       if (__DEV__) console.warn('[Axon ChatGPT] HTTP error:', resp.status);
-      return null;
+      // Returnează eroarea specifică pentru diagnosticare
+      const errData = await resp.json().catch(() => ({})) as { error?: { message?: string } };
+      const errMsg = errData?.error?.message ?? `HTTP ${resp.status}`;
+      throw new Error(`${resp.status}::${errMsg}`);
     }
 
     const data = await resp.json() as {
@@ -269,6 +274,8 @@ export async function callChatGPT(
     const text = data.choices?.[0]?.message?.content?.trim();
     return text && text.length > 1 ? text : null;
   } catch (e) {
+    // Re-throw HTTP errors (cu codul statusului) — prind în testOpenAIKeyDetailed
+    if (e instanceof Error && /^\d{3}::/.test(e.message)) throw e;
     if (__DEV__) console.warn('[Axon ChatGPT] callChatGPT failed:', e);
     return null;
   }
@@ -357,14 +364,33 @@ export async function callActiveProvider(
 ): Promise<{ text: string; provider: AIProvider } | null> {
   const sys = system ?? AXON_SYSTEM_PROMPT;
 
+  // Încearcă providerul activ mai întâi
   if (settings.activeProvider === 'gemini' && settings.geminiKey) {
-    const text = await callGemini(prompt, settings.geminiKey, sys, history);
-    if (text) return { text, provider: 'gemini' };
+    try {
+      const text = await callGemini(prompt, settings.geminiKey, sys, history);
+      if (text) return { text, provider: 'gemini' };
+    } catch {}
+    // Auto-fallback: dacă Gemini eșuează și există cheie OpenAI, încearcă OpenAI
+    if (settings.openaiKey) {
+      try {
+        const text = await callChatGPT(prompt, settings.openaiKey, sys, history);
+        if (text) return { text, provider: 'openai' };
+      } catch {}
+    }
   }
 
   if (settings.activeProvider === 'openai' && settings.openaiKey) {
-    const text = await callChatGPT(prompt, settings.openaiKey, sys, history);
-    if (text) return { text, provider: 'openai' };
+    try {
+      const text = await callChatGPT(prompt, settings.openaiKey, sys, history);
+      if (text) return { text, provider: 'openai' };
+    } catch {}
+    // Auto-fallback: dacă OpenAI eșuează și există cheie Gemini, încearcă Gemini
+    if (settings.geminiKey) {
+      try {
+        const text = await callGemini(prompt, settings.geminiKey, sys, history);
+        if (text) return { text, provider: 'gemini' };
+      } catch {}
+    }
   }
 
   return null;
@@ -373,11 +399,37 @@ export async function callActiveProvider(
 // ─── Test de conectivitate ────────────────────────────────────────────────────
 
 export async function testGeminiKey(apiKey: string): Promise<boolean> {
-  const result = await callGemini('Răspunde cu un singur cuvânt: funcționează', apiKey);
-  return result !== null;
+  const { ok } = await testGeminiKeyDetailed(apiKey);
+  return ok;
 }
 
 export async function testOpenAIKey(apiKey: string): Promise<boolean> {
-  const result = await callChatGPT('Răspunde cu un singur cuvânt: funcționează', apiKey);
-  return result !== null;
+  const { ok } = await testOpenAIKeyDetailed(apiKey);
+  return ok;
+}
+
+export async function testOpenAIKeyDetailed(apiKey: string): Promise<{ ok: boolean; error: string }> {
+  if (!apiKey || apiKey.trim().length < 15) {
+    return { ok: false, error: 'Cheia este prea scurtă (minim 15 caractere).' };
+  }
+  try {
+    const result = await callChatGPT('Say: ok', apiKey.trim());
+    if (result) return { ok: true, error: '' };
+    return { ok: false, error: 'Cheia nu a returnat răspuns. Verifică creditul contului OpenAI.' };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.startsWith('401::')) {
+      return { ok: false, error: 'Cheie OpenAI invalidă sau expirată. Obține o cheie nouă din platform.openai.com/api-keys' };
+    }
+    if (msg.startsWith('429::')) {
+      return { ok: false, error: 'Limită de rată depășită (Rate limit). Încearcă din nou în câteva secunde.' };
+    }
+    if (msg.startsWith('402::') || msg.includes('insufficient_quota') || msg.includes('credit')) {
+      return { ok: false, error: 'Cont OpenAI fără credit. Adaugă credit pe platform.openai.com/account/billing' };
+    }
+    if (msg.includes('abort') || msg.includes('timeout')) {
+      return { ok: false, error: 'Timeout — verifică conexiunea la internet.' };
+    }
+    return { ok: false, error: `Eroare conexiune: ${msg.slice(0, 80)}` };
+  }
 }

@@ -1,7 +1,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Clipboard, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Animated, Clipboard, Modal, Platform, ScrollView,
+  StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { writeAsStringAsync, documentDirectory } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -359,14 +360,46 @@ function MarkdownContent({ text, isUser }: { text: string; isUser: boolean }) {
   );
 }
 
-// ─── ChatBubble ───────────────────────────────────────────────────────────────
+// ─── Context Menu (long-press) ────────────────────────────────────────────────
 
-import { Platform } from 'react-native';
+function MessageContextMenu({
+  visible, onClose, onCopy, onShare,
+}: {
+  visible: boolean; onClose: () => void;
+  onCopy: () => void; onShare: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity style={menuStyles.overlay} activeOpacity={1} onPress={onClose}>
+        <View style={menuStyles.menu}>
+          <TouchableOpacity style={menuStyles.item} onPress={onCopy} activeOpacity={0.7}>
+            <Feather name="copy" size={16} color={colors.text} />
+            <Text style={menuStyles.itemText}>Copiază mesaj</Text>
+          </TouchableOpacity>
+          <View style={menuStyles.divider} />
+          <TouchableOpacity style={menuStyles.item} onPress={onShare} activeOpacity={0.7}>
+            <Feather name="share-2" size={16} color={colors.text} />
+            <Text style={menuStyles.itemText}>Trimite / Salvează</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+// ─── ChatBubble ───────────────────────────────────────────────────────────────
 
 export default function ChatBubble({ message, index }: Props) {
   const isUser = message.role === 'user';
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(isUser ? 20 : -20)).current;
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [copied, setCopiedMsg] = useState(false);
 
   useEffect(() => {
     Animated.parallel([
@@ -383,35 +416,96 @@ export default function ChatBubble({ message, index }: Props) {
     hour: '2-digit', minute: '2-digit',
   });
 
-  // Detectează dacă mesajul are cod
   const hasCode = message.content.includes('```');
 
+  const handleLongPress = () => {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setMenuVisible(true);
+  };
+
+  const handleCopyMsg = () => {
+    Clipboard.setString(message.content);
+    setMenuVisible(false);
+    setCopiedMsg(true);
+    setTimeout(() => setCopiedMsg(false), 2000);
+  };
+
+  const handleShareMsg = async () => {
+    setMenuVisible(false);
+    try {
+      const path = `${documentDirectory ?? ''}axon_msg_${Date.now()}.txt`;
+      await writeAsStringAsync(path, message.content);
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) await Sharing.shareAsync(path, { mimeType: 'text/plain', dialogTitle: 'Trimite mesajul' });
+    } catch {}
+  };
+
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        isUser ? styles.userContainer : styles.aiContainer,
-        { opacity: fadeAnim, transform: [{ translateX: slideAnim }] },
-      ]}
-    >
-      {!isUser && (
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>A</Text>
-        </View>
-      )}
-      <View style={[
-        styles.bubble,
-        isUser ? styles.userBubble : styles.aiBubble,
-        hasCode && !isUser && styles.codeBubble,
-      ]}>
-        <MarkdownContent text={message.content} isUser={isUser} />
-        <Text style={[styles.time, isUser ? styles.userTime : styles.aiTime]}>
-          {timeStr}
-        </Text>
-      </View>
-    </Animated.View>
+    <>
+      <MessageContextMenu
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onCopy={handleCopyMsg}
+        onShare={handleShareMsg}
+      />
+      <Animated.View
+        style={[
+          styles.container,
+          isUser ? styles.userContainer : styles.aiContainer,
+          { opacity: fadeAnim, transform: [{ translateX: slideAnim }] },
+        ]}
+      >
+        {!isUser && (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>A</Text>
+          </View>
+        )}
+        <TouchableOpacity
+          activeOpacity={0.95}
+          onLongPress={handleLongPress}
+          delayLongPress={400}
+        >
+          <View style={[
+            styles.bubble,
+            isUser ? styles.userBubble : styles.aiBubble,
+            hasCode && !isUser && styles.codeBubble,
+            copied && styles.copiedBubble,
+          ]}>
+            <MarkdownContent text={message.content} isUser={isUser} />
+            <View style={styles.footer}>
+              <Text style={[styles.time, isUser ? styles.userTime : styles.aiTime]}>
+                {timeStr}
+              </Text>
+              {copied && (
+                <Text style={styles.copiedLabel}>✓ Copiat</Text>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    </>
   );
 }
+
+const menuStyles = StyleSheet.create({
+  overlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  menu: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 16, minWidth: 200, overflow: 'hidden',
+    borderWidth: 1, borderColor: colors.border,
+  },
+  item: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 20, paddingVertical: 16,
+  },
+  itemText: {
+    color: colors.text, fontSize: 15, fontFamily: 'Inter_500Medium',
+  },
+  divider: { height: 1, backgroundColor: colors.border },
+});
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -455,9 +549,12 @@ const styles = StyleSheet.create({
   bulletRow: { flexDirection: 'row', marginVertical: 2, alignItems: 'flex-start' },
   bulletDot: { color: colors.primary, fontSize: 15, marginRight: 6, fontFamily: 'Inter_700Bold' },
   bulletText: { flex: 1, color: colors.aiBubbleText, fontSize: 15, lineHeight: 22, fontFamily: 'Inter_400Regular' },
-  time: { fontSize: 10, marginTop: 4, fontFamily: 'Inter_400Regular' },
-  userTime: { color: 'rgba(255,255,255,0.6)', textAlign: 'right' },
+  footer: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginTop: 4 },
+  time: { fontSize: 10, fontFamily: 'Inter_400Regular' },
+  userTime: { color: 'rgba(255,255,255,0.6)' },
   aiTime: { color: colors.textMuted },
+  copiedBubble: { opacity: 0.85 },
+  copiedLabel: { fontSize: 10, color: colors.success, fontFamily: 'Inter_500Medium' },
 });
 
 const codeStyles = StyleSheet.create({

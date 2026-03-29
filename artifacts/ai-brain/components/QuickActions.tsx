@@ -12,14 +12,18 @@ import Colors from '@/constants/colors';
 const { colors } = Colors;
 
 const QUICK_ACTIONS = [
-  { label: 'Cum te cheamă?', icon: '🤖' },
-  { label: 'Ce este fotosinteza?', icon: '🌱' },
-  { label: 'Ce oră e?', icon: '🕐' },
-  { label: '144 / 12', icon: '🧮' },
-  { label: 'Spune-mi o glumă', icon: '😄' },
   { label: 'Ce poți face?', icon: '💡' },
+  { label: 'Spune-mi o glumă', icon: '😄' },
   { label: 'Motivează-mă', icon: '💪' },
+  { label: 'Ce este fotosinteza?', icon: '🌱' },
   { label: 'Ce este ADN-ul?', icon: '🔬' },
+  { label: 'Explică inteligența artificială', icon: '🤖' },
+  { label: 'Cel mai mare ocean din lume?', icon: '🌊' },
+  { label: 'Cum funcționează creierul?', icon: '🧠' },
+  { label: '1 EUR în RON?', icon: '💶' },
+  { label: 'Capital Franța?', icon: '🗼' },
+  { label: 'Ce este cuantica?', icon: '⚛️' },
+  { label: 'Recomandă-mi un film', icon: '🎬' },
 ];
 
 const DEV_QUICK_ACTIONS = [

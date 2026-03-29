@@ -104,14 +104,13 @@ export default function AIProviderModal({ visible, onClose }: Props) {
 
   const handleTestGemini = async () => {
     clearError();
+    setLocalError('');
     setSuccessMsg('');
     const trimmed = geminiInput.trim();
-    // Validare format cheie Gemini
-    if (!trimmed.startsWith('AIzaSy') || trimmed.length < 35) {
-      setLocalError('Format incorect. Cheia Gemini trebuie să înceapă cu "AIzaSy" și are ~39 caractere. Obții gratuit de la aistudio.google.com');
+    if (trimmed.length < 15) {
+      setLocalError('Cheia este prea scurtă. Lipește cheia completă din Google AI Studio.');
       return;
     }
-    setLocalError('');
     const ok = await testKey('gemini', trimmed);
     if (ok) {
       await saveGeminiKey(trimmed);
@@ -122,14 +121,13 @@ export default function AIProviderModal({ visible, onClose }: Props) {
 
   const handleTestOpenAI = async () => {
     clearError();
+    setLocalError('');
     setSuccessMsg('');
     const trimmed = openaiInput.trim();
-    // Validare format cheie OpenAI
-    if (!trimmed.startsWith('sk-') || trimmed.length < 40) {
-      setLocalError('Format incorect. Cheia OpenAI trebuie să înceapă cu "sk-" și are 51+ caractere. Obții de la platform.openai.com/api-keys');
+    if (trimmed.length < 15) {
+      setLocalError('Cheia este prea scurtă. Lipește cheia completă din platform.openai.com/api-keys');
       return;
     }
-    setLocalError('');
     const ok = await testKey('openai', trimmed);
     if (ok) {
       await saveOpenAIKey(trimmed);
