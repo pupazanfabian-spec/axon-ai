@@ -164,7 +164,9 @@ export function extractSearchQuery(text: string): string {
   return query.length > 2 ? query : text;
 }
 
-// ─── Căutare paralelă (Wikipedia RO + EN + DuckDuckGo simultan) ──────────────
+// ─── Căutare paralelă — "primul răspuns util câștigă" ────────────────────────
+// Wikipedia RO e sursa preferată. Dacă răspunde rapid, returnăm imediat
+// fără să așteptăm EN și DDG; acestea continuă în fundal și se cachează.
 export async function searchOnline(query: string): Promise<OnlineResult> {
   const cleanQuery = extractSearchQuery(query);
   const cacheKey = cleanQuery.toLowerCase().trim();
@@ -178,23 +180,30 @@ export async function searchOnline(query: string): Promise<OnlineResult> {
     }
   } catch {}
 
-  // Lansează toate sursele în paralel
-  const [roResult, enResult, ddgResult] = await Promise.allSettled([
-    searchWikipediaRO(cleanQuery),
-    searchWikipediaEN(cleanQuery),
-    searchDuckDuckGo(cleanQuery),
-  ]);
+  // Promise pentru fiecare sursă — startate simultan
+  const roPromise = searchWikipediaRO(cleanQuery);
+  const enPromise = searchWikipediaEN(cleanQuery);
+  const ddgPromise = searchDuckDuckGo(cleanQuery);
 
-  // Prioritate: Wikipedia RO > DuckDuckGo > Wikipedia EN
-  const ro = roResult.status === 'fulfilled' ? roResult.value : null;
-  const en = enResult.status === 'fulfilled' ? enResult.value : null;
-  const ddg = ddgResult.status === 'fulfilled' ? ddgResult.value : null;
+  // Returnăm primul rezultat valid din ordinea de prioritate (RO > DDG > EN),
+  // fără să blocăm pe sursele mai lente
+  const firstResult = await Promise.any([
+    roPromise.then(r => { if (!r) throw new Error('no result'); return r; }),
+    ddgPromise.then(r => { if (!r) throw new Error('no result'); return r; }),
+    enPromise.then(r => { if (!r) throw new Error('no result'); return r; }),
+  ]).catch(() => null);
 
-  const best = ro ?? ddg ?? en;
-
-  if (best) {
-    _cacheResult(cacheKey, best);
-    return best;
+  if (firstResult) {
+    _cacheResult(cacheKey, firstResult);
+    // Continuă cachând orice alte rezultate utile în fundal
+    Promise.allSettled([roPromise, enPromise, ddgPromise]).then(results => {
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value && r.value !== firstResult) {
+          _cacheResult(`${cacheKey}_alt_${r.value.source}`, r.value);
+        }
+      }
+    });
+    return firstResult;
   }
 
   return {

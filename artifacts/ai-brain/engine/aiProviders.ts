@@ -5,6 +5,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 // ─── Chei de stocare ────────────────────────────────────────────────────────
 
@@ -26,7 +27,10 @@ export interface AIProviderSettings {
 async function secureGet(key: string): Promise<string | null> {
   try {
     return await SecureStore.getItemAsync(key);
-  } catch {
+  } catch (err) {
+    if (__DEV__ && Platform.OS !== 'web') {
+      console.warn(`[Axon] SecureStore.getItemAsync("${key}") unavailable, using AsyncStorage fallback:`, err);
+    }
     return AsyncStorage.getItem(`@secure_${key}`);
   }
 }
@@ -38,7 +42,10 @@ async function secureSet(key: string, value: string): Promise<void> {
     } else {
       await SecureStore.deleteItemAsync(key);
     }
-  } catch {
+  } catch (err) {
+    if (__DEV__ && Platform.OS !== 'web') {
+      console.warn(`[Axon] SecureStore.setItemAsync("${key}") unavailable, using AsyncStorage fallback:`, err);
+    }
     await AsyncStorage.setItem(`@secure_${key}`, value);
   }
 }
