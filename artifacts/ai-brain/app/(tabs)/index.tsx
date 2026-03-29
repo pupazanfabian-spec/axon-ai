@@ -26,6 +26,7 @@ import ModelSetupScreen from '@/components/ModelSetupScreen';
 import FloatingBubble from '@/components/FloatingBubble';
 import AIProviderModal from '@/components/AIProviderModal';
 import KnowledgeScreen from '@/components/KnowledgeScreen';
+import CodeSandboxScreen from '@/components/CodeSandboxScreen';
 import { useBrain } from '@/context/BrainContext';
 import { useLLM } from '@/context/LLMContext';
 import { usePin } from '@/context/PinContext';
@@ -57,6 +58,7 @@ export default function ChatScreen() {
   const [showKnowledge, setShowKnowledge] = useState(false);
   const [showProjectSwitcher, setShowProjectSwitcher] = useState(false);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [showSandbox, setShowSandbox] = useState(false);
 
   // PIN flow state
   const [pinMode, setPinMode] = useState<PinMode>(null);
@@ -290,6 +292,12 @@ export default function ChatScreen() {
             />
           </TouchableOpacity>
           <TouchableOpacity
+            style={[styles.headerBtn, styles.sandboxBtn]}
+            onPress={() => setShowSandbox(true)}
+          >
+            <Feather name="terminal" size={20} color="#00FF88" />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.headerBtn, isDevMode && styles.devModeBtn]}
             onPress={toggleDevMode}
           >
@@ -455,6 +463,11 @@ export default function ChatScreen() {
         onClose={() => setShowKnowledge(false)}
       />
 
+      <CodeSandboxScreen
+        visible={showSandbox}
+        onClose={() => setShowSandbox(false)}
+      />
+
       {/* Bulina flotantă Axon */}
       <FloatingBubble
         onSendToChat={(text) => {
@@ -538,6 +551,10 @@ const styles = StyleSheet.create({
   },
   pinTipText: {
     fontSize: 11, color: colors.textMuted, fontFamily: 'Inter_400Regular',
+  },
+  sandboxBtn: {
+    backgroundColor: 'rgba(0, 255, 136, 0.1)',
+    borderRadius: 8,
   },
   devModeBtn: {
     backgroundColor: 'rgba(0, 212, 255, 0.12)',

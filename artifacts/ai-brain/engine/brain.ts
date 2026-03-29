@@ -633,8 +633,16 @@ const INTENT_PATTERNS: IntentPattern[] = [
   },
   {
     intent: 'cmd_cod',
-    patterns: [/(^scrie (un? )?(cod|functie|clasa|script|program|algoritm|aplicatie)|^genereaza (cod|functia|clasa|scriptul)|^implementeaza|^fa-mi un script|^scrie-mi cod)/],
+    patterns: [
+      /(^scrie (un? )?(cod|functie|clasa|script|program|algoritm|aplicatie|api|server|bot|joc|calculator|site|pagina|componenta|modul|library|pachet)|^genereaza (cod|functia|clasa|scriptul|algoritmul)|^implementeaza|^fa-mi un script|^scrie-mi cod|^cod pentru|^program (in|care)|^fa (un program|o aplicatie|un script|o functie|un algoritm|o clasa|un api|un server|o baza de date|o interfata)|^creeaza (o aplicatie|un program|o baza|un api|un server|o pagina web|o interfata)|^ajuta-ma sa (codez|programez|scriu|implementez))/,
+      /(in python|in javascript|in typescript|in java|in c\+\+|in c#|in go|in rust|in php|in ruby|in bash|in html|in css|in sql|in kotlin|in swift)\s+(care|ce|sa|cu|pentru|care|scrie|fa|implementeaza|creeaza)/,
+    ],
     weight: 9,
+  },
+  {
+    intent: 'cmd_cod',
+    patterns: [/(explica (codul|acest cod|algoritmul|functia|clasa)|debugeaza|optimizeaza (codul|functia|algoritmul)|refactorizeaza|ce face acest cod|cum functioneaza (codul|algoritmul|scriptul)|corecteaza (eroarea|bug-ul)|fix (bug|error|cod))/],
+    weight: 8,
   },
   {
     intent: 'definitie',
@@ -682,7 +690,7 @@ const INTENT_SEMANTIC_LABELS: Partial<Record<Intent, string>> = {
   cmd_comparare: 'compara diferenta deosebire avantaje dezavantaje versus vs mai bun',
   cmd_plan: 'plan planifica organiza pasi ghid tutorial cum sa fac cum pot',
   cmd_creatie: 'inventeaza imagineaza genereaza idee poveste gluma dialog scenariu personaj',
-  cmd_cod: 'cod functie clasa script program algoritm aplicatie implementeaza',
+  cmd_cod: 'cod functie clasa script program algoritm aplicatie implementeaza python javascript typescript java cpp go rust php ruby bash html css sql api server bot debug fix eroare bug optimizeaza refactorizeaza',
 };
 
 function detectIntent(text: string): Intent {
