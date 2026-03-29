@@ -342,7 +342,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        if (!devResponse && (devIntent === 'explain' || devIntent === 'compare' || devIntent === 'generate')) {
+        if (!devResponse && (devIntent === 'explain' || devIntent === 'compare')) {
           const offlineExplanation = generateDevExplanation(text);
           if (offlineExplanation) {
             devResponse = offlineExplanation;
@@ -368,6 +368,11 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
                 autoLearnFromWeb(cloudResult.text, cloudResult.provider, text);
               }
             } catch {}
+          }
+
+          // Fallback offline pentru 'generate' fără template și fără AI
+          if (!devResponse && devIntent === 'generate') {
+            devResponse = `🔧 **Axon Dev — Mod Offline**\n\nAm detectat o cerere de generare cod pentru: **"${text.slice(0, 80)}"**\n\nÎn prezent nu am un template exact pentru această cerere și nu e configurat niciun provider AI.\n\n**Opțiuni:**\n• Conectează **Gemini** sau **ChatGPT** din setări (iconița 🔑) pentru generare cod complet\n• Încearcă formulări mai specifice:\n  — "generează app todo"\n  — "creează calculator"\n  — "scrie un timer app"\n  — "fă un QR scanner"\n  — "quiz app în React Native"\n  — "fitness tracker"\n\n**Template-uri disponibile offline:** todo, calculator, chat, notițe, weather, auth, API, landing, screen capture, QR scanner, timer, quiz, fitness tracker`;
           }
         }
 

@@ -26,6 +26,8 @@ const CODE_PATTERNS = [
   /\b(componen(?:tă|ta|t)|screen|pagina|view)\b/i,
   /\b(funcție|function|class[ă]?|hook|context)\b/i,
   /\b(template|exemplu|example|demo|starter)\b/i,
+  /\b(program(?:ul)?|proiect|project|implement(?:ează|eaza)?|dezvolt(?:ă|a)?)\b/i,
+  /\b(face(?:ti)?|realiz(?:ează|eaza)?|construi(?:ăsc|asc)?|generat(?:or|oare)?)\b/i,
 ];
 
 const DEBUG_PATTERNS = [

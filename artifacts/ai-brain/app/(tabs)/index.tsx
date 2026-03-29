@@ -258,7 +258,7 @@ export default function ChatScreen() {
                   ? `✨ ${aiProviderSettings.activeProvider === 'gemini' ? 'Gemini' : 'ChatGPT'} • Hibrid`
                   : docCount > 0
                     ? `${docCount} doc. • Offline`
-                    : `v${brainState.selfKnowledge?.intelligenceVersion ?? 1} • Offline`}
+                    : `v3.1 • Offline`}
             </Text>
           </View>
         </View>

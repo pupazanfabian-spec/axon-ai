@@ -4084,12 +4084,329 @@ const s = StyleSheet.create({
       },
     ],
   },
+  'screen-capture': {
+    id: 'screen-capture',
+    name: 'Screen Capture App',
+    stack: 'React Native + expo-media-library + TypeScript',
+    description: 'Aplicație pentru capturarea ecranului și salvarea în galerie',
+    dependencies: ['expo-media-library', 'expo-file-system'],
+    files: [
+      {
+        path: 'ScreenCapture.tsx',
+        content: `import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
+import * as MediaLibrary from 'expo-media-library';
+import { captureRef } from 'react-native-view-shot';
+import { useRef } from 'react';
+
+export default function ScreenCapture() {
+  const viewRef = useRef<View>(null);
+  const [lastCapture, setLastCapture] = useState<string | null>(null);
+  const [permGranted, setPermGranted] = useState(false);
+
+  const requestPerms = async () => {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    setPermGranted(status === 'granted');
+    if (status !== 'granted') Alert.alert('Permisiune necesară', 'Acordă acces la galerie.');
+  };
+
+  const capture = async () => {
+    if (!permGranted) { await requestPerms(); return; }
+    try {
+      const uri = await captureRef(viewRef, { format: 'png', quality: 1 });
+      await MediaLibrary.saveToLibraryAsync(uri);
+      setLastCapture(uri);
+      Alert.alert('Succes', 'Screenshot salvat în galerie!');
+    } catch (e) {
+      Alert.alert('Eroare', 'Nu s-a putut captura ecranul.');
+    }
+  };
+
+  return (
+    <View style={s.container}>
+      <View ref={viewRef} style={s.preview} collapsable={false}>
+        <Text style={s.previewText}>Conținut de capturat</Text>
+        {lastCapture && <Image source={{ uri: lastCapture }} style={s.thumb} />}
+      </View>
+      <TouchableOpacity style={s.btn} onPress={capture}>
+        <Text style={s.btnText}>📸 Capturează Ecran</Text>
+      </TouchableOpacity>
+      {!permGranted && (
+        <TouchableOpacity style={[s.btn, s.permBtn]} onPress={requestPerms}>
+          <Text style={s.btnText}>🔑 Acordă Permisiune</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0A0A0F', padding: 24, paddingTop: 60 },
+  preview: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  previewText: { color: '#fff', fontSize: 18 },
+  thumb: { width: 120, height: 80, borderRadius: 8, marginTop: 12 },
+  btn: { backgroundColor: '#6C63FF', padding: 18, borderRadius: 14, alignItems: 'center', marginBottom: 12 },
+  permBtn: { backgroundColor: '#FF6584' },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+});`,
+      },
+    ],
+  },
+  'qr-scanner': {
+    id: 'qr-scanner',
+    name: 'QR & Barcode Scanner',
+    stack: 'React Native + expo-camera + TypeScript',
+    description: 'Scanner QR și coduri de bare cu expo-camera',
+    dependencies: ['expo-camera', 'expo-barcode-scanner'],
+    files: [
+      {
+        path: 'QRScanner.tsx',
+        content: `import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
+import { Camera, CameraView } from 'expo-camera';
+
+export default function QRScanner() {
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [scanned, setScanned] = useState(false);
+  const [result, setResult] = useState('');
+
+  useEffect(() => {
+    Camera.requestCameraPermissionsAsync().then(({ status }) => {
+      setHasPermission(status === 'granted');
+    });
+  }, []);
+
+  const handleScan = ({ type, data }: { type: string; data: string }) => {
+    if (scanned) return;
+    setScanned(true);
+    setResult(data);
+    if (data.startsWith('http')) {
+      Alert.alert('Link detectat', data, [
+        { text: 'Deschide', onPress: () => Linking.openURL(data) },
+        { text: 'OK', onPress: () => setScanned(false) },
+      ]);
+    }
+  };
+
+  if (hasPermission === null) return <View style={s.container}><Text style={s.txt}>Se solicită permisiune...</Text></View>;
+  if (!hasPermission) return <View style={s.container}><Text style={s.txt}>Camera inaccesibilă. Acordă permisiune din Setări.</Text></View>;
+
+  return (
+    <View style={s.container}>
+      <Text style={s.title}>📷 Scanner QR</Text>
+      <View style={s.scanArea}>
+        <CameraView style={s.camera} onBarcodeScanned={handleScan} barcodeScannerSettings={{ barcodeTypes: ['qr', 'ean13', 'code128'] }}>
+          <View style={s.overlay} />
+        </CameraView>
+      </View>
+      {result ? (
+        <View style={s.resultBox}>
+          <Text style={s.resultLabel}>Rezultat:</Text>
+          <Text style={s.resultText}>{result}</Text>
+          <TouchableOpacity style={s.btn} onPress={() => { setScanned(false); setResult(''); }}>
+            <Text style={s.btnText}>Scanează din nou</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <Text style={s.hint}>Îndreptă camera spre un cod QR sau de bare</Text>
+      )}
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0A0A0F', padding: 24, paddingTop: 60 },
+  title: { color: '#fff', fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
+  scanArea: { height: 300, borderRadius: 16, overflow: 'hidden', marginBottom: 24 },
+  camera: { flex: 1 },
+  overlay: { position: 'absolute', inset: 0, borderWidth: 2, borderColor: '#6C63FF', borderRadius: 16 },
+  resultBox: { backgroundColor: '#1A1A2E', padding: 16, borderRadius: 12 },
+  resultLabel: { color: '#888', fontSize: 12, marginBottom: 4 },
+  resultText: { color: '#00D4FF', fontSize: 16, marginBottom: 12 },
+  btn: { backgroundColor: '#6C63FF', padding: 14, borderRadius: 10, alignItems: 'center' },
+  btnText: { color: '#fff', fontWeight: 'bold' },
+  hint: { color: '#888', textAlign: 'center', marginTop: 12 },
+  txt: { color: '#fff', textAlign: 'center', marginTop: 100 },
+});`,
+      },
+    ],
+  },
+  'timer-app': {
+    id: 'timer-app',
+    name: 'Timer & Cronometru',
+    stack: 'React Native + TypeScript',
+    description: 'Timer, cronometru și alarme cu animații',
+    dependencies: [],
+    files: [
+      {
+        path: 'TimerApp.tsx',
+        content: `import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Vibration } from 'react-native';
+
+export default function TimerApp() {
+  const [mode, setMode] = useState<'stopwatch' | 'timer'>('stopwatch');
+  const [elapsed, setElapsed] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [timerSec, setTimerSec] = useState(60);
+  const [remaining, setRemaining] = useState(60);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (running) {
+      intervalRef.current = setInterval(() => {
+        if (mode === 'stopwatch') {
+          setElapsed(e => e + 1);
+        } else {
+          setRemaining(r => {
+            if (r <= 1) { setRunning(false); Vibration.vibrate([500, 200, 500]); return 0; }
+            return r - 1;
+          });
+        }
+      }, 1000);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [running, mode]);
+
+  const fmt = (s: number) => \`\${String(Math.floor(s / 60)).padStart(2, '0')}:\${String(s % 60).padStart(2, '0')}\`;
+  const reset = () => { setRunning(false); setElapsed(0); setRemaining(timerSec); };
+
+  return (
+    <View style={s.container}>
+      <View style={s.tabs}>
+        {(['stopwatch', 'timer'] as const).map(m => (
+          <TouchableOpacity key={m} style={[s.tab, mode === m && s.activeTab]} onPress={() => { setMode(m); reset(); }}>
+            <Text style={[s.tabText, mode === m && s.activeTabText]}>{m === 'stopwatch' ? '⏱ Cronometru' : '⏰ Timer'}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <Text style={s.display}>{mode === 'stopwatch' ? fmt(elapsed) : fmt(remaining)}</Text>
+      <View style={s.btns}>
+        <TouchableOpacity style={[s.btn, running ? s.stop : s.start]} onPress={() => setRunning(r => !r)}>
+          <Text style={s.btnText}>{running ? '⏸ Pauză' : '▶ Start'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.btn, s.reset]} onPress={reset}>
+          <Text style={s.btnText}>↺ Reset</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0A0A0F', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  tabs: { flexDirection: 'row', backgroundColor: '#1A1A2E', borderRadius: 12, padding: 4, marginBottom: 48 },
+  tab: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
+  activeTab: { backgroundColor: '#6C63FF' },
+  tabText: { color: '#888', fontWeight: '600' },
+  activeTabText: { color: '#fff' },
+  display: { fontSize: 80, fontWeight: '200', color: '#fff', fontVariant: ['tabular-nums'], marginBottom: 48 },
+  btns: { flexDirection: 'row', gap: 16 },
+  btn: { flex: 1, padding: 18, borderRadius: 14, alignItems: 'center' },
+  start: { backgroundColor: '#6C63FF' },
+  stop: { backgroundColor: '#FF6584' },
+  reset: { backgroundColor: '#1A1A2E', borderWidth: 1, borderColor: '#333' },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+});`,
+      },
+    ],
+  },
+  'fitness-app': {
+    id: 'fitness-app',
+    name: 'Fitness Tracker',
+    stack: 'React Native + TypeScript + AsyncStorage',
+    description: 'Tracker antrenamente cu exerciții, seturi, repetări și calorii',
+    dependencies: ['@react-native-async-storage/async-storage'],
+    files: [
+      {
+        path: 'FitnessTracker.tsx',
+        content: `import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+interface Set { reps: number; weight: number; }
+interface Exercise { name: string; sets: Set[]; }
+interface Workout { date: string; exercises: Exercise[]; calories: number; }
+
+export default function FitnessTracker() {
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [newEx, setNewEx] = useState('');
+  const [today, setToday] = useState<Exercise[]>([]);
+
+  useEffect(() => {
+    AsyncStorage.getItem('workouts').then(d => { if (d) setWorkouts(JSON.parse(d)); });
+  }, []);
+
+  const addExercise = () => {
+    if (!newEx.trim()) return;
+    setToday(prev => [...prev, { name: newEx.trim(), sets: [{ reps: 10, weight: 20 }] }]);
+    setNewEx('');
+  };
+
+  const saveWorkout = async () => {
+    const w: Workout = { date: new Date().toLocaleDateString('ro-RO'), exercises: today, calories: today.length * 50 };
+    const updated = [w, ...workouts].slice(0, 30);
+    setWorkouts(updated);
+    await AsyncStorage.setItem('workouts', JSON.stringify(updated));
+    setToday([]);
+  };
+
+  return (
+    <ScrollView style={s.container}>
+      <Text style={s.title}>💪 Fitness Tracker</Text>
+      <View style={s.addRow}>
+        <TextInput style={s.input} value={newEx} onChangeText={setNewEx} placeholder="Exercițiu (ex: Flotări)" placeholderTextColor="#555" />
+        <TouchableOpacity style={s.addBtn} onPress={addExercise}><Text style={s.addBtnText}>+</Text></TouchableOpacity>
+      </View>
+      {today.map((ex, i) => (
+        <View key={i} style={s.exCard}>
+          <Text style={s.exName}>{ex.name}</Text>
+          {ex.sets.map((set, j) => (
+            <Text key={j} style={s.setRow}>Set {j+1}: {set.reps} rep × {set.weight}kg</Text>
+          ))}
+        </View>
+      ))}
+      {today.length > 0 && (
+        <TouchableOpacity style={s.saveBtn} onPress={saveWorkout}><Text style={s.saveBtnText}>💾 Salvează Antrenamentul</Text></TouchableOpacity>
+      )}
+      <Text style={s.histTitle}>Istoric ({workouts.length} antrenamente)</Text>
+      {workouts.map((w, i) => (
+        <View key={i} style={s.histCard}>
+          <Text style={s.histDate}>{w.date} — {w.calories} kcal</Text>
+          <Text style={s.histExs}>{w.exercises.map(e => e.name).join(', ')}</Text>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0A0A0F', padding: 24, paddingTop: 60 },
+  title: { color: '#fff', fontSize: 26, fontWeight: 'bold', marginBottom: 24 },
+  addRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  input: { flex: 1, backgroundColor: '#1A1A2E', color: '#fff', padding: 14, borderRadius: 12, fontSize: 16 },
+  addBtn: { backgroundColor: '#6C63FF', width: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  addBtnText: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+  exCard: { backgroundColor: '#1A1A2E', padding: 16, borderRadius: 12, marginBottom: 12 },
+  exName: { color: '#00D4FF', fontSize: 16, fontWeight: 'bold', marginBottom: 6 },
+  setRow: { color: '#888', fontSize: 14 },
+  saveBtn: { backgroundColor: '#6C63FF', padding: 16, borderRadius: 14, alignItems: 'center', marginBottom: 24 },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  histTitle: { color: '#888', fontSize: 14, marginBottom: 12 },
+  histCard: { backgroundColor: '#111', padding: 14, borderRadius: 10, marginBottom: 10 },
+  histDate: { color: '#6C63FF', fontSize: 13, fontWeight: 'bold' },
+  histExs: { color: '#666', fontSize: 12, marginTop: 2 },
+});`,
+      },
+    ],
+  },
 };
 
 // ─── Detectare tip de app din descriere ──────────────────────────────────────
 
 export function detectAppType(text: string): string {
-  const t = text.toLowerCase();
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (t.includes('todo') || t.includes('task') || t.includes('sarcin')) return 'todo-rn';
   if (t.includes('calculator') || t.includes('calcul')) return 'calculator';
   if (t.includes('chat') || t.includes('mesaj') || t.includes('conversatie')) return 'chat-app';
@@ -4098,6 +4415,16 @@ export function detectAppType(text: string): string {
   if (t.includes('auth') || t.includes('login') || t.includes('autentificare') || t.includes('register')) return 'auth-system';
   if (t.includes('api') || t.includes('backend') || t.includes('server') || t.includes('express')) return 'api-express';
   if (t.includes('landing') || t.includes('website') || t.includes('pagina')) return 'landing-page';
+  if (t.includes('captur') || t.includes('screenshot') || t.includes('screen capture') || t.includes('ecran')) return 'screen-capture';
+  if (t.includes('qr') || t.includes('barcode') || t.includes('scanner') || t.includes('scan')) return 'qr-scanner';
+  if (t.includes('camera') || t.includes('foto') || t.includes('poza') || t.includes('galerie')) return 'camera-app';
+  if (t.includes('muzica') || t.includes('audio') || t.includes('player') || t.includes('playlist')) return 'music-player';
+  if (t.includes('quiz') || t.includes('test') || t.includes('intrebari') || t.includes('chestionar')) return 'quiz-app';
+  if (t.includes('timer') || t.includes('cronometru') || t.includes('stopwatch') || t.includes('alarma')) return 'timer-app';
+  if (t.includes('map') || t.includes('harta') || t.includes('locatie') || t.includes('gps')) return 'map-app';
+  if (t.includes('shop') || t.includes('magazin') || t.includes('cos') || t.includes('produs') || t.includes('ecomm')) return 'shop-app';
+  if (t.includes('fitness') || t.includes('antrenament') || t.includes('exercitiu') || t.includes('calorii')) return 'fitness-app';
+  if (t.includes('dashboard') || t.includes('grafic') || t.includes('statistic') || t.includes('chart')) return 'dashboard-app';
   return '';
 }
 
