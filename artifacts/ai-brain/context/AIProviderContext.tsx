@@ -52,14 +52,14 @@ export function AIProviderProvider({ children }: { children: React.ReactNode }) 
     }).catch(() => setIsReady(true));
   }, []);
 
+  const settingsRef = useRef<AIProviderSettings>(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+
   const persist = useCallback(async (updater: (prev: AIProviderSettings) => AIProviderSettings) => {
-    let next!: AIProviderSettings;
-    setSettings(prev => {
-      next = updater(prev);
-      return next;
-    });
-    // Wait one tick so `next` is populated
-    await Promise.resolve();
+    // Compute next from the latest snapshot — no stale closure, no race
+    const next = updater(settingsRef.current);
+    settingsRef.current = next;
+    setSettings(next);
     await saveProviderSettings(next).catch(() => {});
   }, []);
 
