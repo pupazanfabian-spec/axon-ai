@@ -207,3 +207,48 @@ function _cacheResult(cacheKey: string, result: OnlineResult): void {
     setCachedWebResult(cacheKey, result, 48).catch(() => {});
   }).catch(() => {});
 }
+
+// ─── Extrage top 3 propoziții relevante din text web ─────────────────────────
+// Scor = numărul de cuvinte cheie din query regăsite în propoziție (ponderate după lungime)
+export function extractTopSentences(rawText: string, query: string, maxSentences = 3): string {
+  const queryWords = query.toLowerCase()
+    .replace(/[?!.,;:()[\]]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 3);
+
+  const sentences = rawText
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 20 && s.length < 400);
+
+  if (sentences.length <= maxSentences) return rawText;
+
+  const scored = sentences.map(s => {
+    const sl = s.toLowerCase();
+    let score = 0;
+    for (const w of queryWords) {
+      if (sl.includes(w)) score += 1 + Math.min(w.length / 10, 0.5); // longer words = higher weight
+    }
+    return { s, score };
+  });
+
+  const topSentences = scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxSentences)
+    // Restore original order from text
+    .sort((a, b) => sentences.indexOf(a.s) - sentences.indexOf(b.s))
+    .map(x => x.s);
+
+  return topSentences.join(' ');
+}
+
+// ─── Căutare online cu sinteză semantică ─────────────────────────────────────
+// Versiune extinsă a searchOnline care extrage top fraze relevante
+export async function searchOnlineSynthesized(query: string): Promise<OnlineResult> {
+  const result = await searchOnline(query);
+  if (!result.found || !result.text) return result;
+
+  // Aplică extragere semantică — returnează top 3 propoziții relevante
+  const synthesized = extractTopSentences(result.text, query, 3);
+  return { ...result, text: synthesized };
+}

@@ -8,11 +8,11 @@ import {
 import { createMindState } from '@/engine/mind';
 import { createSelfKnowledge } from '@/engine/learning';
 import { createEntityTracker } from '@/engine/entities';
-import { createInferenceEngine } from '@/engine/inference';
+import { createInferenceEngine, extractRulesFromFact, addFact } from '@/engine/inference';
 import { createTemporalMemory } from '@/engine/temporal';
 import { createConstitutionState } from '@/engine/constitution';
 import { useLLM } from '@/context/LLMContext';
-import { searchOnline, isOnlineIntent } from '@/engine/webSearch';
+import { searchOnline, isOnlineIntent, searchOnlineSynthesized, extractTopSentences } from '@/engine/webSearch';
 import { detectQuestionType, synthesizeWebResponse, detectTopicCategory } from '@/engine/responseGenerator';
 import { useAIProvider } from '@/context/AIProviderContext';
 import { buildRichSystemPrompt, type AxonContext } from '@/engine/aiProviders';
@@ -449,7 +449,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     if (shouldSearchOnline) {
       setWebSearching(true);
       try {
-        const onlineResult = await searchOnline(text);
+        const onlineResult = await searchOnlineSynthesized(text);
         if (onlineResult.found) {
           const qType = detectQuestionType(text);
           response = synthesizeWebResponse(
@@ -473,19 +473,31 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     const needsCloudAI = !webAnswered && !answeredFromDB && isClassicFallback && aiSettings.activeProvider !== 'none';
     if (needsCloudAI) {
       try {
+        const brain = brainRef.current;
+
+        // Construiește context bogat pentru promptul de sistem
+        const allFacts = brain.selfKnowledge.learnedFacts;
+        // Selectează top 10 fapte relevante semantic față de mesajul curent
+        const rankedFacts = allFacts
+          .map(f => ({ f, score: (f.toLowerCase().split(/\s+/).filter(w => text.toLowerCase().includes(w)).length) }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 10)
+          .map(x => x.f);
+
         const brainCtx: AxonContext = {
-          userName: brainRef.current.userName ?? undefined,
-          preferredStyle: brainRef.current.selfKnowledge.preferredStyle,
-          topTopics: Object.entries(brainRef.current.selfKnowledge.topicFrequency)
+          userName: brain.userName ?? undefined,
+          preferredStyle: brain.selfKnowledge.preferredStyle,
+          topTopics: Object.entries(brain.selfKnowledge.topicFrequency)
             .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t),
-          learnedFacts: brainRef.current.selfKnowledge.learnedFacts.slice(-15),
-          inferenceRules: brainRef.current.inferenceEngine.rules
-            .filter(r => r.confidence > 0.6).slice(-5).map(r => r.subject + ' ' + r.predicate),
-          entities: brainRef.current.entityTracker.entities
-            .filter(e => e.relation === 'eu').slice(-8)
-            .map(e => ({ value: e.value, relation: e.relation ?? 'eu' })),
-          recentTopics: brainRef.current.lastTopics,
-          conversationCount: brainRef.current.conversationCount,
+          learnedFacts: rankedFacts,
+          inferenceRules: brain.inferenceEngine.rules
+            .filter(r => r.confidence > 0.7).slice(-5).map(r => r.subject + ' ' + r.predicate),
+          // Entități relevante: oameni/lucruri menționate în conversație (rel !== 'eu')
+          entities: brain.entityTracker.entities
+            .filter(e => e.relation !== 'eu').slice(-8)
+            .map(e => ({ value: e.value, relation: e.relation ?? 'context' })),
+          recentTopics: brain.lastTopics,
+          conversationCount: brain.conversationCount,
         };
         const richSystem = buildRichSystemPrompt(brainCtx);
         const cloudResult = await aiGenerate(text, richSystem);
@@ -493,11 +505,23 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
           const providerName = cloudResult.provider === 'gemini' ? '✨ Gemini' : '🤖 ChatGPT';
           response = `${providerName}: ${cloudResult.text}`;
           autoLearnFromWeb(cloudResult.text, cloudResult.provider, text);
-          // Auto-extrage fapte din răspunsul AI și le adaugă în memorie
-          const aiSentences = cloudResult.text.split(/[.!?\n]/).filter(s => s.trim().length > 20 && s.trim().length < 200);
-          for (const sent of aiSentences.slice(0, 5)) {
-            if (brainRef.current.selfKnowledge.learnedFacts.length < 200) {
-              brainRef.current.selfKnowledge.learnedFacts.push(sent.trim());
+
+          // Auto-extrage fapte din răspunsul AI folosind motorul de inferență
+          const aiSentences = cloudResult.text
+            .split(/[.!\n]/)
+            .map(s => s.trim())
+            .filter(s => s.length > 20 && s.length < 220);
+          for (const sent of aiSentences.slice(0, 3)) {
+            // Adaugă în learnedFacts
+            if (brain.selfKnowledge.learnedFacts.length < 200) {
+              brain.selfKnowledge.learnedFacts.push(sent);
+            }
+            // Extrage reguli logice cu source: 'deduced', filtrat prin confidence > 0.75
+            const rules = extractRulesFromFact(sent, 'deduced');
+            for (const rule of rules) {
+              if (rule.confidence >= 0.75) {
+                addFact(brain.inferenceEngine, sent, 'deduced');
+              }
             }
           }
         }

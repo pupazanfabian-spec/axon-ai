@@ -728,6 +728,35 @@ const UNIT_ALIASES: Record<string, [string, string]> = {
   ani: ['timp', 'an'], an: ['timp', 'an'],
 };
 
+// ─── Estimare valutară (offline, curs aproximativ) ────────────────────────────
+
+const EXCHANGE_RATES: Record<string, { rate: number; label: string }> = {
+  eur: { rate: 4.97, label: 'EUR' },
+  euro: { rate: 4.97, label: 'EUR' },
+  usd: { rate: 4.56, label: 'USD' },
+  dolari: { rate: 4.56, label: 'USD' },
+  dolar: { rate: 4.56, label: 'USD' },
+  gbp: { rate: 5.80, label: 'GBP' },
+  lire: { rate: 5.80, label: 'GBP' },
+  chf: { rate: 5.15, label: 'CHF' },
+  franci: { rate: 5.15, label: 'CHF' },
+};
+
+function handleCurrencyEstimate(text: string): string | null {
+  const n = norm(text);
+  const rx = /(\d+(?:[.,]\d+)?)\s*(eur(?:o)?|usd|dolar(?:i)?|gbp|lire?|chf|franci?)(?:\s*(?:in|la|cat(?:e)?\s+(?:e|fac|sunt))\s*(?:lei|ron|ron?)?)?/;
+  const m = n.match(rx);
+  if (!m) return null;
+
+  const amount = parseFloat(m[1].replace(',', '.'));
+  const currency = (m[2] || '').toLowerCase().replace(/\s/g, '');
+  const info = EXCHANGE_RATES[currency];
+  if (!info) return null;
+
+  const lei = Math.round(amount * info.rate * 100) / 100;
+  return `**${amount} ${info.label} ≈ ${lei.toFixed(2)} RON**\n\n_(curs estimativ: 1 ${info.label} ≈ ${info.rate} RON — curs neoficial, verificați BNR)_`;
+}
+
 function handleUnitConversion(text: string): string | null {
   const n = norm(text);
   // "X unitate1 in/la unitate2" sau "cat sunt X unitate1 in unitate2"
@@ -802,6 +831,41 @@ function handleFollowUp(
   }
 
   return `Continui pe subiectul "${lastRealTopic.slice(0, 50)}" — poți fi mai specific ce aspect vrei să aprofundezi?`;
+}
+
+// ─── Compound question handler ────────────────────────────────────────────────
+// Detectează și tratează întrebări multi-parte (X și Y?) separate prin " și " sau " dar și "
+
+function handleCompoundQuestion(
+  text: string,
+  state: BrainState,
+  history: { role: string; content: string }[],
+): string | null {
+  const n = norm(text);
+  // Detectează format "ce este A și ce este B?" sau "defineste X și explică Y"
+  const splitRx = /^(.{10,120}?)\s+(?:si|dar si|dar|iar)\s+(.{10,120})$/;
+  const m = n.match(splitRx);
+  if (!m) return null;
+
+  const part1 = m[1].trim();
+  const part2 = m[2].trim();
+
+  // Ambele parți trebuie să fie sub-întrebări distincte (cel puțin una conține cuvânt de întrebare)
+  const questionWords = /^(ce|cum|de ce|cand|unde|cine|cat|care|defineste|explica|spune.mi)/;
+  if (!questionWords.test(part1) && !questionWords.test(part2)) return null;
+
+  // Răspunde la fiecare parte separat
+  const resp1 = searchDictionary(part1) || findDictEntryByKeywords(part1)?.def || null;
+  const resp2 = searchDictionary(part2) || findDictEntryByKeywords(part2)?.def || null;
+
+  if (!resp1 && !resp2) return null;
+
+  let combined = '';
+  if (resp1) combined += `**Primul aspect:**\n${resp1}`;
+  if (resp1 && resp2) combined += '\n\n---\n\n';
+  if (resp2) combined += `**Al doilea aspect:**\n${resp2}`;
+
+  return combined || null;
 }
 
 function handleDateTime(): string {
@@ -1189,13 +1253,20 @@ export function processMessage(
     return response;
   }
 
-  // ── 8. Conversii de unități ───────────────────────────────────────────────
+  // ── 8. Conversii de unități și valutare ──────────────────────────────────
   if (intent === 'conversie_unitati') {
     const convResult = handleUnitConversion(trimmed);
     if (convResult) {
       selfUpdate(trimmed, convResult, state.selfKnowledge, messageHistory, intent);
       return convResult;
     }
+  }
+
+  // Estimare valutară (EUR, USD, GBP → RON) — prioritate înaltă
+  const currResult = handleCurrencyEstimate(trimmed);
+  if (currResult) {
+    selfUpdate(trimmed, currResult, state.selfKnowledge, messageHistory, intent);
+    return currResult;
   }
 
   // ── 8b. Matematică ────────────────────────────────────────────────────────
@@ -1209,6 +1280,15 @@ export function processMessage(
   if (convResult) {
     selfUpdate(trimmed, convResult, state.selfKnowledge, messageHistory, intent);
     return convResult;
+  }
+
+  // ── 8c. Întrebări compuse (X și Y?) ──────────────────────────────────────
+  if (text.length > 20 && (text.includes(' și ') || text.includes(' dar '))) {
+    const compoundResult = handleCompoundQuestion(trimmed, state, messageHistory);
+    if (compoundResult) {
+      selfUpdate(trimmed, compoundResult, state.selfKnowledge, messageHistory, intent);
+      return compoundResult;
+    }
   }
 
   // ── 9. Follow-up contextual ───────────────────────────────────────────────
