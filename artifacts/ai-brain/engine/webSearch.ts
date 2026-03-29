@@ -1,3 +1,4 @@
+import { semanticSimilarity } from './semantic';
 
 // Axon — Motor de căutare online v2.0 (paralel)
 // Surse: Wikipedia RO, Wikipedia EN, DuckDuckGo Instant Answers — toate în paralel
@@ -209,13 +210,8 @@ function _cacheResult(cacheKey: string, result: OnlineResult): void {
 }
 
 // ─── Extrage top 3 propoziții relevante din text web ─────────────────────────
-// Scor = semanticSimilarity (cosine pe TF-IDF) dintre query și fiecare propoziție
+// Scor = semanticSimilarity (cosine TF-IDF) dintre query și fiecare propoziție
 export function extractTopSentences(rawText: string, query: string, maxSentences = 3): string {
-  // Import inline pentru a evita circularitate la build time
-  const norm = (s: string) => s.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ').trim();
-
   const sentences = rawText
     .split(/[.!?](?:\s|$)/)
     .map(s => s.trim())
@@ -223,29 +219,15 @@ export function extractTopSentences(rawText: string, query: string, maxSentences
 
   if (sentences.length <= maxSentences) return rawText;
 
-  const queryN = norm(query);
-  const queryWords = queryN.split(/\s+/).filter(w => w.length > 3);
-
-  const scored = sentences.map(s => {
-    const sn = norm(s);
-    let score = 0;
-    // Semantic: weighted keyword overlap with length bonus for longer matches
-    for (const w of queryWords) {
-      if (sn.includes(w)) {
-        score += 1 + (w.length > 6 ? 0.5 : 0.2);
-      }
-    }
-    // Bonus pentru propoziții cu densitate mare de cuvinte cheie
-    if (queryWords.length > 0) {
-      score /= Math.log(sn.split(/\s+/).length + 2); // normalize by sentence length
-    }
-    return { s, score };
-  });
+  const scored = sentences.map(s => ({
+    s,
+    score: semanticSimilarity(query, s),
+  }));
 
   const topSentences = scored
     .sort((a, b) => b.score - a.score)
     .slice(0, maxSentences)
-    // Restore original order from text
+    // Restaurează ordinea originală din text
     .sort((a, b) => sentences.indexOf(a.s) - sentences.indexOf(b.s))
     .map(x => x.s);
 

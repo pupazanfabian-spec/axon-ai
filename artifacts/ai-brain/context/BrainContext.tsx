@@ -509,22 +509,27 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
           response = `${providerName}: ${cloudResult.text}`;
           autoLearnFromWeb(cloudResult.text, cloudResult.provider, text);
 
-          // Auto-extrage fapte din răspunsul AI folosind motorul de inferență
+          // Auto-extrage fapte structurate din răspunsul AI
+          // Doar propoziții cu structură X este/are/poate Y — nu orice frază
+          const STRUCTURED_FACT = /\b(este|sunt|are|poate|reprezintă|înseamnă|conține|produce|provoacă|implică)\b/i;
           const aiSentences = cloudResult.text
             .split(/[.!\n]/)
             .map(s => s.trim())
-            .filter(s => s.length > 20 && s.length < 220);
+            .filter(s =>
+              s.length > 25 && s.length < 220 &&
+              STRUCTURED_FACT.test(s) &&
+              !brain.selfKnowledge.learnedFacts.includes(s),
+            );
           for (const sent of aiSentences.slice(0, 3)) {
-            // Adaugă în learnedFacts
+            // Adaugă în learnedFacts (max 200)
             if (brain.selfKnowledge.learnedFacts.length < 200) {
               brain.selfKnowledge.learnedFacts.push(sent);
             }
-            // Extrage reguli logice cu source: 'deduced', filtrat prin confidence > 0.75
+            // Extrage și persistă reguli logice cu confidence ≥ 0.75 (un singur addFact per propoziție)
             const rules = extractRulesFromFact(sent, 'deduced');
-            for (const rule of rules) {
-              if (rule.confidence >= 0.75) {
-                addFact(brain.inferenceEngine, sent, 'deduced');
-              }
+            const bestRule = rules.find(r => r.confidence >= 0.75);
+            if (bestRule) {
+              addFact(brain.inferenceEngine, sent, 'deduced');
             }
           }
         }

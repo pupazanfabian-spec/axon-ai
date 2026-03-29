@@ -19,7 +19,7 @@ import {
 } from './entities';
 import {
   InferenceEngine, createInferenceEngine, addFact as addInferenceFact,
-  inferAnswer, detectContradiction, getInferenceReport,
+  inferAnswer, detectContradiction, getInferenceReport, chainReason,
 } from './inference';
 import {
   TemporalMemory, createTemporalMemory, queryTemporalMemory,
@@ -812,7 +812,13 @@ function handleFollowUp(
 
   if (!lastRealTopic) return null;
 
-  // Caută mai adânc în dicționar pe topicul precedent
+  // 1. Rulează lanț de inferență pe topicul recuperat (deducție multi-nivel)
+  const chainSteps = chainReason(state.inferenceEngine, lastRealTopic);
+  if (chainSteps.length > 1) {
+    return `🔗 **Deducție din lanțul de inferență** pe subiectul "${lastRealTopic.slice(0, 40)}":\n\n${chainSteps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
+  }
+
+  // 2. Caută mai adânc în dicționar pe topicul precedent
   const dictResult = searchDictionary(lastRealTopic);
   if (dictResult) {
     const extras = [
@@ -823,7 +829,7 @@ function handleFollowUp(
     return `${pick(extras)}\n\n${dictResult}`;
   }
 
-  // Caută în knowledge base
+  // 3. Caută în knowledge base
   const concept = findRelevantConceptExtended(lastRealTopic);
   if (concept) {
     const extraFact = concept.facts[Math.floor(Math.random() * concept.facts.length)];
