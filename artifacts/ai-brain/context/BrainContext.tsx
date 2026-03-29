@@ -402,6 +402,42 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     // Detectează dacă utilizatorul vrea explicit căutare online
     const wantsOnline = isOnlineIntent(text);
 
+    // ── Comandă imperativă detectată de brain → bypass total, direct la Cloud AI ──
+    if (response.startsWith('AXON_CMD:')) {
+      const parts = response.slice('AXON_CMD:'.length).split('||');
+      const cmdLabel = parts[0] ?? 'comandă';
+      const cmdOriginal = parts[1] ?? text;
+
+      if (aiSettings.activeProvider !== 'none') {
+        try {
+          const brain = brainRef.current;
+          const rankedFacts = brain.selfKnowledge.learnedFacts
+            .map(f => ({ f, score: semanticSimilarity(text, f) }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 6)
+            .map(x => x.f);
+          const ctx: AxonContext = {
+            userName: brain.userName ?? undefined,
+            learnedFacts: rankedFacts,
+            recentTopics: brain.lastTopics,
+            conversationCount: brain.conversationCount,
+          };
+          const sysPrompt = buildRichSystemPrompt(ctx);
+          const aiResult = await aiGenerate(cmdOriginal, sysPrompt, history.slice(-20) as ConversationTurn[]);
+          if (aiResult) {
+            const provIcon = aiResult.provider === 'gemini' ? '✦ Gemini' : '⬡ ChatGPT';
+            response = `${provIcon}: ${aiResult.text.trim()}`;
+          } else {
+            response = `⚠️ Provider AI inactiv. Activează Gemini sau ChatGPT din ⚙️ pentru comenzi de tip "${cmdLabel}".`;
+          }
+        } catch {
+          response = `⚠️ Eroare la executarea comenzii "${cmdLabel}". Verifică conexiunea și cheia API.`;
+        }
+      } else {
+        response = `🔌 Comandă: **${cmdLabel}**\n\nActivează un provider AI din ⚙️ → Setări AI pentru a executa această comandă.`;
+      }
+    }
+
     // Verifică dacă creierul clasic nu a dat un răspuns bun
     const isClassicFallback = response.startsWith('Nu am date') ||
       response.startsWith('Nu am găsit') ||

@@ -428,7 +428,19 @@ type Intent =
   | 'definitie' | 'opinie' | 'gandire_profunda'
   | 'conversatie_anterioara' | 'entitate' | 'inferenta' | 'temporala'
   | 'securitate' | 'constitutie' | 'follow_up' | 'cine_sunt_eu'
+  | 'cmd_scriere' | 'cmd_traducere' | 'cmd_rezumat' | 'cmd_lista'
+  | 'cmd_comparare' | 'cmd_plan' | 'cmd_creatie' | 'cmd_cod'
   | 'unknown';
+
+// Intenții care necesită obligatoriu Cloud AI (ocolesc web search)
+export const COMMAND_INTENTS = new Set<Intent>([
+  'cmd_scriere', 'cmd_traducere', 'cmd_rezumat', 'cmd_lista',
+  'cmd_comparare', 'cmd_plan', 'cmd_creatie', 'cmd_cod',
+]);
+
+export function isCommandIntent(intent: string): boolean {
+  return COMMAND_INTENTS.has(intent as Intent);
+}
 
 interface IntentPattern {
   intent: Intent;
@@ -583,6 +595,47 @@ const INTENT_PATTERNS: IntentPattern[] = [
     patterns: [/(ma numesc|imi zice|cheama-ma|numele meu este|eu sunt|eu ma numesc)/],
     weight: 7,
   },
+  // ─── Comenzi imperative (necesită Cloud AI) ───────────────────────────────
+  {
+    intent: 'cmd_scriere',
+    patterns: [/(^scrie(-mi)?|^redacteaza|^compune|^creeaza un (text|eseu|email|mesaj|scrisoare|poem|poezie|articol)|^fa-mi un (text|eseu|email)|^formuleaza)/],
+    weight: 9,
+  },
+  {
+    intent: 'cmd_traducere',
+    patterns: [/(^traduce|^translateaza|^in engleza|^in franceza|^in germana|^in spaniola|^cum se spune .* in|traduce asta|traducere din|translateaza asta)/],
+    weight: 9,
+  },
+  {
+    intent: 'cmd_rezumat',
+    patterns: [/(^rezuma|^fa(-mi)? un rezumat|^sumarizeaza|^pe scurt ce|^ce e esentialul|^sinteza|^scurteaza|^rezumatul)/],
+    weight: 9,
+  },
+  {
+    intent: 'cmd_lista',
+    patterns: [/(^listeaza|^da-mi o lista|^enumera|^fa(-mi)? o lista|^care sunt (toate|cele mai|principalele|top)|^top \d+|^primele \d+|^cele mai bune \d+)/],
+    weight: 9,
+  },
+  {
+    intent: 'cmd_comparare',
+    patterns: [/(^compara|^care e (diferenta|deosebirea)|^ce diferenta|avantaje.*dezavantaje|^versus|^vs\.?$|mai bun.*sau|.* vs .*)/],
+    weight: 8,
+  },
+  {
+    intent: 'cmd_plan',
+    patterns: [/(^fa(-mi)? un plan|^creeaza un plan|^planifica|^cum sa organizez|^pasi pentru|^ghid (pas cu pas|pentru)|^tutorial|^cum pot face|^cum sa fac)/],
+    weight: 8,
+  },
+  {
+    intent: 'cmd_creatie',
+    patterns: [/(^inventeaza|^imagineaza|^genereaza (o idee|idei|o poveste|o gluma|un dialog|un scenariu)|^creeaza (o poveste|un personaj|o lume)|^propune-mi|^sugereaza-mi ceva)/],
+    weight: 8,
+  },
+  {
+    intent: 'cmd_cod',
+    patterns: [/(^scrie (un? )?(cod|functie|clasa|script|program|algoritm|aplicatie)|^genereaza (cod|functia|clasa|scriptul)|^implementeaza|^fa-mi un script|^scrie-mi cod)/],
+    weight: 9,
+  },
   {
     intent: 'definitie',
     patterns: [/(ce este|ce inseamna|defineste|ce reprezinta|explica-mi|spune-mi ce este|ce stii despre|vorbeste-mi despre|povesteste-mi despre|info despre|explica|informatii despre)/],
@@ -622,6 +675,14 @@ const INTENT_SEMANTIC_LABELS: Partial<Record<Intent, string>> = {
   follow_up: 'continua mai mult explica mai bine aprofundeaza si asta',
   motivatie: 'motiveaza inspiratie curaj citat incurajeaza',
   gluma: 'gluma amuzant rade amuzanta',
+  cmd_scriere: 'scrie redacteaza compune text eseu email scrisoare poem articol fa-mi genereaza',
+  cmd_traducere: 'traduce translateaza engleza franceza germana spaniola cum se spune traducere',
+  cmd_rezumat: 'rezuma rezumat sumarizeaza pe scurt esential sinteza scurteaza',
+  cmd_lista: 'listeaza lista enumera care sunt top cele mai bune primele toate',
+  cmd_comparare: 'compara diferenta deosebire avantaje dezavantaje versus vs mai bun',
+  cmd_plan: 'plan planifica organiza pasi ghid tutorial cum sa fac cum pot',
+  cmd_creatie: 'inventeaza imagineaza genereaza idee poveste gluma dialog scenariu personaj',
+  cmd_cod: 'cod functie clasa script program algoritm aplicatie implementeaza',
 };
 
 function detectIntent(text: string): Intent {
@@ -1343,6 +1404,22 @@ export function processMessage(
     }
     selfUpdate(trimmed, response, state.selfKnowledge, messageHistory, intent);
     return response;
+  }
+
+  // ── 10b. Comenzi imperative → marker special pentru Cloud AI ─────────────
+  if (COMMAND_INTENTS.has(intent as any)) {
+    const cmdLabels: Record<string, string> = {
+      cmd_scriere:  'scriere / redactare text',
+      cmd_traducere:'traducere',
+      cmd_rezumat:  'rezumat',
+      cmd_lista:    'listare / enumerare',
+      cmd_comparare:'comparare',
+      cmd_plan:     'planificare / ghid pas-cu-pas',
+      cmd_creatie:  'creație / generare idei',
+      cmd_cod:      'scriere cod / algoritm',
+    };
+    const label = cmdLabels[intent] ?? 'comandă';
+    return `AXON_CMD:${label}||${trimmed}`;
   }
 
   // ── 11. Definiție dicționar ───────────────────────────────────────────────
