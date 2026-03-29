@@ -65,9 +65,9 @@ REGULI ABSOLUTE:
 5. Formatul răspunsului: explicație → cod → pași următori`;
 
   if (template) {
-    systemPrompt += `\n\nStack detectat: ${template.stack}
+    systemPrompt += `\n\nStack detectat: ${template.stack ?? 'react-native'}
 Template de bază: ${template.name}
-Dependințe necesare: ${template.dependencies.join(', ') || 'niciuna extra'}`;
+Dependințe necesare: ${(template.dependencies ?? []).join(', ') || 'niciuna extra'}`;
   }
 
   if (projectContext) {
@@ -101,18 +101,20 @@ export function generateFromTemplate(userRequest: string): CodeGenResult | null 
   const template = APP_TEMPLATES[appType];
   if (!template) return null;
 
+  const deps = template.dependencies ?? [];
+  const files = template.files ?? [];
   return {
     templateId: appType,
-    stack: template.stack,
-    dependencies: template.dependencies,
-    files: template.files.map(f => ({
+    stack: template.stack ?? 'react-native',
+    dependencies: deps,
+    files: files.map(f => ({
       filename: f.path,
       language: detectLanguage(f.path),
       code: f.content,
       explanation: `Fișier generat din template "${template.name}"`,
     })),
     nextSteps: [
-      `Instalează dependințele: npm install ${template.dependencies.join(' ')}`,
+      deps.length > 0 ? `Instalează dependințele: npm install ${deps.join(' ')}` : 'Rulează aplicația cu expo start',
       'Adaptează culorile și textele la brandul tău',
       'Adaugă logica specifică aplicației tale',
       'Testează pe Android și iOS',

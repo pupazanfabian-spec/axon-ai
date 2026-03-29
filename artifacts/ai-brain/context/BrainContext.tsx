@@ -319,14 +319,25 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
           const templateResult = generateFromTemplate(text);
           if (templateResult) {
             devResponse = formatCodeResponse(templateResult);
-            // Salvează fișierele generate în proiectul activ (non-blocking)
-            getActiveProject().then(proj => {
-              if (proj) {
-                for (const file of templateResult.files) {
-                  saveProjectFile(proj.id, file.filename, file.language, file.code).catch(() => {});
-                }
-                refreshProject();
+            // Creează sau actualizează proiectul activ cu pașii generați (non-blocking)
+            getActiveProject().then(async curProj => {
+              let projectId: string;
+              if (curProj) {
+                projectId = curProj.id;
+              } else {
+                const projectName = templateResult.templateId
+                  ? `App: ${templateResult.templateId}`
+                  : text.slice(0, 60);
+                const projectStack = templateResult.stack || 'react-native';
+                const projectDesc = `Stack: ${projectStack}. Generat din: ${text.slice(0, 80)}`;
+                const newProj = await createProject(projectName, projectStack, projectDesc);
+                projectId = newProj.id;
               }
+              for (const file of templateResult.files) {
+                await addProjectStep(projectId, `Creare ${file.filename}`).catch(() => {});
+                await saveProjectFile(projectId, file.filename, file.language, file.code).catch(() => {});
+              }
+              refreshProject();
             }).catch(() => {});
           }
         }
@@ -341,8 +352,11 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
         // 2. Debug mode: extrage snippet din mesaj și trimite la AI Cloud
         if (devIntent === 'debug' || !devResponse) {
           const codeSnippet = extractCodeSnippet(text);
-          const projectContext = await getActiveProject().then(p => p ? buildProjectContext(p) : undefined).catch(() => undefined);
-          const aiPrompt = buildAICodePrompt(text, devIntent === 'debug' ? 'debug' : devIntent, projectContext, codeSnippet);
+          const activeProj = await getActiveProject().catch(() => null);
+          const projectContext = activeProj ? buildProjectContext(activeProj) : undefined;
+          const projectSummary = activeProj ? formatProjectSummary(activeProj) : undefined;
+          const enrichedText = projectSummary ? `${text}\n\n[Context proiect]\n${projectSummary}` : text;
+          const aiPrompt = buildAICodePrompt(enrichedText, devIntent === 'debug' ? 'debug' : devIntent, projectContext, codeSnippet);
 
           // Încearcă AI Cloud
           if (aiSettings.activeProvider !== 'none') {
