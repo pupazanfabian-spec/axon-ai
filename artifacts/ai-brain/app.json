@@ -31,6 +31,12 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "CAMERA",
         "READ_MEDIA_IMAGES"
       ],
       "usesCleartextTraffic": false
@@ -64,6 +70,12 @@
         "projectId": "594c734d-da36-4933-8712-146d347f5e00"
       }
     },
-    "owner": "pfabianq"
+    "owner": "pfabianq",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/594c734d-da36-4933-8712-146d347f5e00"
+    }
   }
 }
