@@ -185,21 +185,40 @@ export function extractSearchQuery(text: string): string {
   return query.length > 2 ? query : text;
 }
 
-// ─── Funcția principală de căutare ──────────────────────────────────────────
+// ─── Funcția principală de căutare (cu cache SQLite 48h) ─────────────────────
 export async function searchOnline(query: string): Promise<OnlineResult> {
   const cleanQuery = extractSearchQuery(query);
+  const cacheKey = cleanQuery.toLowerCase().trim();
+
+  // Verifică cache-ul SQLite înainte de a face request-uri
+  try {
+    const { getCachedWebResult } = await import('./database');
+    const cached = await getCachedWebResult(cacheKey);
+    if (cached && cached.found) {
+      return { ...cached, query: cleanQuery };
+    }
+  } catch {}
 
   // Încearcă Wikipedia RO primul
   const roResult = await searchWikipediaRO(cleanQuery);
-  if (roResult) return roResult;
+  if (roResult) {
+    _cacheResult(cacheKey, roResult);
+    return roResult;
+  }
 
   // Fallback: Wikipedia EN
   const enResult = await searchWikipediaEN(cleanQuery);
-  if (enResult) return enResult;
+  if (enResult) {
+    _cacheResult(cacheKey, enResult);
+    return enResult;
+  }
 
   // Fallback final: DuckDuckGo
   const ddgResult = await searchDuckDuckGo(cleanQuery);
-  if (ddgResult) return ddgResult;
+  if (ddgResult) {
+    _cacheResult(cacheKey, ddgResult);
+    return ddgResult;
+  }
 
   return {
     found: false,
@@ -207,4 +226,11 @@ export async function searchOnline(query: string): Promise<OnlineResult> {
     source: '',
     query: cleanQuery,
   };
+}
+
+// Cache async, non-blocking — nu blochează răspunsul
+function _cacheResult(cacheKey: string, result: OnlineResult): void {
+  import('./database').then(({ setCachedWebResult }) => {
+    setCachedWebResult(cacheKey, result, 48).catch(() => {});
+  }).catch(() => {});
 }

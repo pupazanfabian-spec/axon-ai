@@ -348,7 +348,12 @@ function normKnow(text: string): string {
 }
 
 // Adaugă un concept nou din fapte învățate de la utilizator
-export function addDynamicConcept(fact: string, domain = 'general'): Concept | null {
+// Dacă persistDB=true, salvează și în SQLite (async, non-blocking)
+export function addDynamicConcept(
+  fact: string,
+  domain = 'general',
+  persistDB = false,
+): Concept | null {
   // "X este Y" sau "X = Y"
   const m = fact.match(/^(.{3,30}?)\s+(?:este|e|sunt|=)\s+(.{5,200})$/i);
   if (!m) return null;
@@ -384,7 +389,49 @@ export function addDynamicConcept(fact: string, domain = 'general'): Concept | n
   };
 
   DYNAMIC_CONCEPTS[id] = concept;
+
+  // Persistare în SQLite (async, non-blocking)
+  if (persistDB) {
+    import('./database').then(({ saveDynamicConcept }) => {
+      saveDynamicConcept({
+        id: concept.id,
+        label: concept.label,
+        domain: concept.domain,
+        description: concept.description,
+        related: concept.related,
+        facts: concept.facts,
+        axonOpinion: concept.axonOpinion,
+        source: 'user',
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+
   return concept;
+}
+
+// Încarcă conceptele dinamice din SQLite la pornire
+export async function loadDynamicConceptsFromDB(): Promise<void> {
+  try {
+    const { loadAllDynamicConcepts } = await import('./database');
+    const rows = await loadAllDynamicConcepts();
+    for (const row of rows) {
+      const id = row.id;
+      if (DYNAMIC_CONCEPTS[id] || CONCEPTS[id]) continue;
+      let related: string[] = [];
+      let facts: string[] = [];
+      try { related = JSON.parse(row.related_json); } catch {}
+      try { facts = JSON.parse(row.facts_json); } catch {}
+      DYNAMIC_CONCEPTS[id] = {
+        id,
+        label: row.label,
+        domain: row.domain,
+        description: row.description,
+        related,
+        facts,
+        axonOpinion: row.axon_opinion ?? undefined,
+      };
+    }
+  } catch {}
 }
 
 // Căutare extinsă — include și conceptele dinamice

@@ -899,7 +899,7 @@ export function processMessage(
     if (m) {
       const fact = m[1].trim();
       addInferenceFact(state.inferenceEngine, fact, 'user');
-      addDynamicConcept(fact, detectTopic(fact));
+      addDynamicConcept(fact, detectTopic(fact), true); // persistDB=true → SQLite
       break;
     }
   }

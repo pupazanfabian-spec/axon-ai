@@ -14,12 +14,15 @@ import { createConstitutionState } from '@/engine/constitution';
 import { useLLM } from '@/context/LLMContext';
 import { searchOnline, isOnlineIntent } from '@/engine/webSearch';
 import { detectQuestionType, synthesizeWebResponse, detectTopicCategory } from '@/engine/responseGenerator';
+import { loadDynamicConceptsFromDB } from '@/engine/knowledge';
+import { getDB, autoPruneKnowledge, insertKnowledgeEntry, getDBStats } from '@/engine/database';
 
 interface BrainContextType {
   messages: Message[];
   isThinking: boolean;
   webSearching: boolean;
   brainState: BrainState;
+  dbReady: boolean;
   sendMessage: (text: string) => Promise<void>;
   clearConversation: () => void;
   addDocument: (name: string, content: string) => Promise<void>;
@@ -42,17 +45,34 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [isThinking, setIsThinking] = useState(false);
   const [webSearching, setWebSearching] = useState(false);
+  const [dbReady, setDbReady] = useState(false);
   const brainRef = useRef<BrainState>(createInitialBrainState());
   const [brainState, setBrainState] = useState<BrainState>(brainRef.current);
   const loaded = useRef(false);
   const { generate: llmGenerate, status: llmStatus } = useLLM();
 
-  // Încarcă starea salvată cu migrare pentru câmpuri noi
+  // ─── Inițializare la startup: DB + state + concepte dinamice ──────────────
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
 
     (async () => {
+      // 1. Inițializează SQLite (non-blocking față de UI)
+      try {
+        await getDB();
+
+        // 1a. Auto-pruning la pornire (rulează în background)
+        autoPruneKnowledge().catch(() => {});
+
+        // 1b. Încarcă conceptele dinamice salvate anterior
+        await loadDynamicConceptsFromDB();
+
+        setDbReady(true);
+      } catch {
+        setDbReady(false);
+      }
+
+      // 2. Încarcă starea brain din AsyncStorage (cu migrare pentru câmpuri noi)
       try {
         const [savedMsgs, savedState] = await Promise.all([
           AsyncStorage.getItem(MESSAGES_KEY),
@@ -119,6 +139,25 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
+  // ─── Auto-learn din web: salvează rezultatele în knowledge_entries ─────────
+  const autoLearnFromWeb = useCallback(async (
+    resultText: string,
+    source: string,
+    query: string,
+  ) => {
+    if (!dbReady) return;
+    try {
+      const domain = detectTopicCategory(query);
+      await insertKnowledgeEntry({
+        content: resultText.slice(0, 800), // Limităm la 800 chars
+        label: query.slice(0, 60),
+        source: source || 'web',
+        domain: domain || 'general',
+        importance: 0.6,
+      });
+    } catch {}
+  }, [dbReady]);
+
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
@@ -162,6 +201,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Fallback 2 / Intenție explicită: Căutare online (Wikipedia + DuckDuckGo)
+    // searchOnline are cache SQLite 48h intern — apeluri repetate sunt instant
     const shouldSearchOnline = wantsOnline || isClassicFallback;
     if (shouldSearchOnline) {
       setWebSearching(true);
@@ -176,6 +216,8 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
             qType,
             { userName: brainRef.current.userName ?? undefined },
           );
+          // Auto-learn: salvează rezultatul web în knowledge_entries (async, non-blocking)
+          autoLearnFromWeb(onlineResult.text, onlineResult.source, text);
         }
       } catch {
         // Fără internet sau eroare — păstrăm răspunsul local
@@ -200,7 +242,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     });
 
     setIsThinking(false);
-  }, [persist, messages]);
+  }, [persist, messages, llmStatus, llmGenerate, autoLearnFromWeb]);
 
   const addDocument = useCallback(async (name: string, content: string) => {
     setIsThinking(true);
@@ -265,7 +307,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <BrainContext.Provider value={{
-      messages, isThinking, webSearching, brainState,
+      messages, isThinking, webSearching, brainState, dbReady,
       sendMessage, clearConversation, addDocument, removeDocument,
     }}>
       {children}
