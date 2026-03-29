@@ -5,6 +5,14 @@
 
 import * as SQLite from 'expo-sqlite';
 
+// Tipul rezultat de la searchOnline — duplicat local pentru a evita import circular
+export interface CachedWebResult {
+  found: boolean;
+  text: string;
+  source: string;
+  query: string;
+}
+
 let _db: SQLite.SQLiteDatabase | null = null;
 
 // ─── Deschide / Inițializează DB ─────────────────────────────────────────────
@@ -154,11 +162,11 @@ export async function queryKnowledgeForAnswer(
 
   // Construiește clauze LIKE pentru fiecare cuvânt cheie
   const conditions = words.map(() => '(lower(content) LIKE ? OR lower(label) LIKE ?)').join(' OR ');
-  const params: any[] = [];
+  const likeParams: (string | number)[] = [];
   for (const w of words) {
-    params.push(`%${w}%`, `%${w}%`);
+    likeParams.push(`%${w}%`, `%${w}%`);
   }
-  params.push(minImportance, 1);
+  likeParams.push(minImportance, 1);
 
   const row = await db.getFirstAsync<{
     id: number;
@@ -172,7 +180,7 @@ export async function queryKnowledgeForAnswer(
      WHERE (${conditions}) AND importance >= ?
      ORDER BY importance DESC, access_count DESC
      LIMIT ?`,
-    params
+    likeParams
   );
 
   if (!row) return null;
@@ -221,7 +229,7 @@ function hashQuery(query: string): string {
   return Math.abs(hash).toString(36);
 }
 
-export async function getCachedWebResult(query: string): Promise<any | null> {
+export async function getCachedWebResult(query: string): Promise<CachedWebResult | null> {
   const db = await getDB();
   const qHash = hashQuery(query.toLowerCase().trim());
   const now = Date.now();
@@ -238,7 +246,8 @@ export async function getCachedWebResult(query: string): Promise<any | null> {
   }
 
   try {
-    return JSON.parse(row.result_json);
+    const parsed = JSON.parse(row.result_json) as CachedWebResult;
+    return parsed;
   } catch {
     return null;
   }
@@ -246,7 +255,7 @@ export async function getCachedWebResult(query: string): Promise<any | null> {
 
 export async function setCachedWebResult(
   query: string,
-  result: any,
+  result: CachedWebResult,
   ttlHours = 48,
 ): Promise<void> {
   const db = await getDB();
@@ -338,10 +347,19 @@ export async function getRecentLearnedFacts(limit = 50): Promise<{ content: stri
 
 // ─── Entities (EntityTracker persistence) ────────────────────────────────────
 
+// Tipul pentru datele unui Entity stocate în SQLite
+export interface EntityData {
+  value: string;
+  firstSeen: number;
+  occurrences: number;
+  context: string;
+  relation?: string;
+}
+
 export async function upsertEntity(
   name: string,
   type: string,
-  data: Record<string, any>,
+  data: EntityData | Record<string, string | number | undefined>,
 ): Promise<void> {
   const db = await getDB();
   const now = Date.now();
@@ -355,7 +373,7 @@ export async function upsertEntity(
 export async function loadAllEntities(): Promise<Array<{
   name: string;
   type: string;
-  data: Record<string, any>;
+  data: EntityData;
   last_updated: number;
 }>> {
   const db = await getDB();
@@ -363,15 +381,24 @@ export async function loadAllEntities(): Promise<Array<{
     'SELECT name, type, data_json, last_updated FROM entities ORDER BY last_updated DESC'
   );
   return rows.map(r => {
-    let data: Record<string, any> = {};
-    try { data = JSON.parse(r.data_json); } catch {}
+    let data: EntityData = { value: r.name, firstSeen: 0, occurrences: 1, context: '' };
+    try {
+      const parsed = JSON.parse(r.data_json) as Record<string, unknown>;
+      data = {
+        value: typeof parsed.value === 'string' ? parsed.value : r.name,
+        firstSeen: typeof parsed.firstSeen === 'number' ? parsed.firstSeen : 0,
+        occurrences: typeof parsed.occurrences === 'number' ? parsed.occurrences : 1,
+        context: typeof parsed.context === 'string' ? parsed.context : '',
+        relation: typeof parsed.relation === 'string' ? parsed.relation : undefined,
+      };
+    } catch {}
     return { name: r.name, type: r.type, data, last_updated: r.last_updated };
   });
 }
 
 export async function loadEntitiesByType(type: string): Promise<Array<{
   name: string;
-  data: Record<string, any>;
+  data: EntityData;
 }>> {
   const db = await getDB();
   const rows = await db.getAllAsync<{ name: string; data_json: string }>(
@@ -379,8 +406,17 @@ export async function loadEntitiesByType(type: string): Promise<Array<{
     [type]
   );
   return rows.map(r => {
-    let data: Record<string, any> = {};
-    try { data = JSON.parse(r.data_json); } catch {}
+    let data: EntityData = { value: r.name, firstSeen: 0, occurrences: 1, context: '' };
+    try {
+      const parsed = JSON.parse(r.data_json) as Record<string, unknown>;
+      data = {
+        value: typeof parsed.value === 'string' ? parsed.value : r.name,
+        firstSeen: typeof parsed.firstSeen === 'number' ? parsed.firstSeen : 0,
+        occurrences: typeof parsed.occurrences === 'number' ? parsed.occurrences : 1,
+        context: typeof parsed.context === 'string' ? parsed.context : '',
+        relation: typeof parsed.relation === 'string' ? parsed.relation : undefined,
+      };
+    } catch {}
     return { name: r.name, data };
   });
 }
@@ -390,7 +426,7 @@ export async function loadEntitiesByType(type: string): Promise<Array<{
 // Salvează o componentă a stării creierului în SQLite
 export async function saveBrainStateComponent(
   key: string,
-  value: any,
+  value: unknown,
 ): Promise<void> {
   const db = await getDB();
   const now = Date.now();

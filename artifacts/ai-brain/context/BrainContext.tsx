@@ -15,6 +15,7 @@ import { useLLM } from '@/context/LLMContext';
 import { searchOnline, isOnlineIntent } from '@/engine/webSearch';
 import { detectQuestionType, synthesizeWebResponse, detectTopicCategory } from '@/engine/responseGenerator';
 import { loadDynamicConceptsFromDB } from '@/engine/knowledge';
+import type { EntityType } from '@/engine/entities';
 import {
   getDB,
   autoPruneKnowledge,
@@ -28,6 +29,7 @@ import {
   loadMessagesFull,
   markMigrationDone,
   isMigrationDone,
+  type EntityData,
 } from '@/engine/database';
 
 interface BrainContextType {
@@ -223,9 +225,16 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     if (!tracker || !Array.isArray(tracker.entities) || tracker.entities.length === 0) return;
     // Non-blocking — salvează fiecare entitate în SQLite (cheie = normalized name)
     Promise.all(
-      tracker.entities.map(entity =>
-        upsertEntity(entity.normalized, entity.type, entity as any).catch(() => {})
-      )
+      tracker.entities.map(entity => {
+        const data: Record<string, string | number | undefined> = {
+          value: entity.value,
+          firstSeen: entity.firstSeen,
+          occurrences: entity.occurrences,
+          context: entity.context,
+          relation: entity.relation,
+        };
+        return upsertEntity(entity.normalized, entity.type, data).catch(() => {});
+      })
     ).catch(() => {});
   }, []);
 
@@ -293,14 +302,15 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Fallback 2: Interogare knowledge_entries (cunoaștere acumulată din web) ÎNAINTE de internet
-    // Aceasta permite lui Axon să răspundă din baza de date locală fără a mai chema internetul
+    // Fallback 2: Interogare knowledge_entries (cunoaștere acumulată anterior din web) ÎNAINTE de internet
+    // Dacă găsește un răspuns relevant, NU mai apelăm internetul (cu excepția intenției explicite)
+    let answeredFromDB = false;
     if (isClassicFallback && dbReady) {
       try {
         const dbAnswer = await queryKnowledgeForAnswer(text, 0.4);
         if (dbAnswer) {
           const qType = detectQuestionType(text);
-          // Sintetizăm răspunsul din knowledge_entries (bumpKnowledgeAccess deja apelat în queryKnowledgeForAnswer)
+          // bumpKnowledgeAccess e apelat automat în queryKnowledgeForAnswer (importance += 0.05)
           response = synthesizeWebResponse(
             dbAnswer.content,
             dbAnswer.source ?? 'Memorie locală',
@@ -308,13 +318,15 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
             qType,
             { userName: brainRef.current.userName ?? undefined },
           );
+          answeredFromDB = true; // Short-circuit: nu mai apelăm internetul
         }
       } catch {}
     }
 
     // Fallback 3 / Intenție explicită: Căutare online (Wikipedia + DuckDuckGo)
-    // searchOnline are cache SQLite 48h intern — apeluri repetate sunt instant
-    const shouldSearchOnline = wantsOnline || isClassicFallback;
+    // Se execută dacă: utilizatorul cere explicit online, SAU nu s-a găsit în DB și e fallback clasic
+    // searchOnline are cache SQLite 48h intern — apeluri repetate sunt instant (fără trafic de rețea)
+    const shouldSearchOnline = wantsOnline || (isClassicFallback && !answeredFromDB);
     if (shouldSearchOnline) {
       setWebSearching(true);
       try {
@@ -447,7 +459,6 @@ export function useBrain() {
 
 async function _syncEntitiesFromDB(state: BrainState): Promise<void> {
   try {
-    const { loadAllEntities } = await import('@/engine/database');
     const rows = await loadAllEntities();
     if (rows.length === 0) return;
     if (!Array.isArray(state.entityTracker.entities)) {
@@ -457,15 +468,20 @@ async function _syncEntitiesFromDB(state: BrainState): Promise<void> {
     for (const row of rows) {
       // Adaugă doar entitățile care nu există deja în tracker (evită duplicate)
       if (!existingNormalized.has(row.name)) {
+        const VALID_ENTITY_TYPES: EntityType[] = ['person', 'place', 'number', 'concept', 'event'];
+        const entityType: EntityType = VALID_ENTITY_TYPES.includes(row.type as EntityType)
+          ? (row.type as EntityType)
+          : 'concept';
+        const edata: EntityData = row.data;
         state.entityTracker.entities.push({
           id: row.name,
-          type: (row.type as any) ?? 'concept',
-          value: row.data.value ?? row.name,
+          type: entityType,
+          value: edata.value,
           normalized: row.name,
-          firstSeen: row.data.firstSeen ?? 0,
-          occurrences: row.data.occurrences ?? 1,
-          context: row.data.context ?? '',
-          relation: row.data.relation,
+          firstSeen: edata.firstSeen,
+          occurrences: edata.occurrences,
+          context: edata.context,
+          relation: edata.relation,
         });
         existingNormalized.add(row.name);
       }

@@ -391,8 +391,21 @@ export function addDynamicConcept(
   DYNAMIC_CONCEPTS[id] = concept;
 
   // Persistare în SQLite (async, non-blocking)
+  // Conform cerințelor task-ului:
+  //   1. knowledge_entries — sursa primară, căutabilă, cu importance tracking
+  //   2. dynamic_concepts — metadate structurate (related[], facts[], axonOpinion)
   if (persistDB) {
-    import('./database').then(({ saveDynamicConcept }) => {
+    import('./database').then(({ insertKnowledgeEntry, saveDynamicConcept }) => {
+      // 1. Salvează în knowledge_entries (cerința principală)
+      insertKnowledgeEntry({
+        content: concept.description,
+        label: concept.label,
+        source: 'dynamic_concept',
+        domain: concept.domain,
+        importance: 0.65,
+      }).catch(() => {});
+
+      // 2. Salvează metadate structurate în dynamic_concepts
       saveDynamicConcept({
         id: concept.id,
         label: concept.label,
@@ -410,11 +423,15 @@ export function addDynamicConcept(
 }
 
 // Încarcă conceptele dinamice din SQLite la pornire
+// Sursa primară: knowledge_entries WHERE source='dynamic_concept'
+// Sursă secundară: dynamic_concepts (pentru metadate structurate)
 export async function loadDynamicConceptsFromDB(): Promise<void> {
   try {
-    const { loadAllDynamicConcepts } = await import('./database');
-    const rows = await loadAllDynamicConcepts();
-    for (const row of rows) {
+    const { loadAllDynamicConcepts, getAllKnowledgeEntries } = await import('./database');
+
+    // 1. Încearcă să încarce metadatele structurate din dynamic_concepts
+    const structuredRows = await loadAllDynamicConcepts();
+    for (const row of structuredRows) {
       const id = row.id;
       if (DYNAMIC_CONCEPTS[id] || CONCEPTS[id]) continue;
       let related: string[] = [];
@@ -429,6 +446,25 @@ export async function loadDynamicConceptsFromDB(): Promise<void> {
         related,
         facts,
         axonOpinion: row.axon_opinion ?? undefined,
+      };
+    }
+
+    // 2. Completează din knowledge_entries WHERE source='dynamic_concept'
+    // (acoperă cazul când metadatele din dynamic_concepts nu sunt disponibile)
+    const keRows = await getAllKnowledgeEntries();
+    for (const row of keRows) {
+      if (row.source !== 'dynamic_concept') continue;
+      if (!row.label) continue;
+      const id = normKnow(row.label).replace(/\s+/g, '_').slice(0, 30);
+      if (DYNAMIC_CONCEPTS[id] || CONCEPTS[id]) continue;
+      DYNAMIC_CONCEPTS[id] = {
+        id,
+        label: row.label,
+        domain: row.domain ?? 'general',
+        description: row.content,
+        related: [],
+        facts: [row.content],
+        axonOpinion: undefined,
       };
     }
   } catch {}
