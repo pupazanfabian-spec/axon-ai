@@ -169,6 +169,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
 
       } catch (e) {
         // Fallback la AsyncStorage dacă SQLite nu funcționează
+        if (__DEV__) console.warn('[Axon] SQLite init failed, falling back to AsyncStorage:', e);
         setDbReady(false);
         try {
           const [asMsgs, asState] = await Promise.all([
@@ -180,7 +181,9 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
               const parsed = migrateParsedState(JSON.parse(asState) as BrainState);
               brainRef.current = parsed;
               setBrainState({ ...parsed });
-            } catch {}
+            } catch (parseErr) {
+              if (__DEV__) console.warn('[Axon] AsyncStorage state parse failed:', parseErr);
+            }
           }
           if (asMsgs) {
             try {
@@ -188,9 +191,13 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
                 ...m, timestamp: new Date(m.timestamp),
               }));
               if (msgs.length > 0) setMessages(msgs);
-            } catch {}
+            } catch (parseErr) {
+              if (__DEV__) console.warn('[Axon] AsyncStorage messages parse failed:', parseErr);
+            }
           }
-        } catch {}
+        } catch (asErr) {
+          if (__DEV__) console.warn('[Axon] AsyncStorage fallback failed:', asErr);
+        }
       }
     })();
   }, []);
@@ -207,14 +214,17 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
         saveBrainStateFull(stateJson),
         saveMessagesFull(msgsJson),
       ]);
-    } catch {
+    } catch (sqlErr) {
+      if (__DEV__) console.warn('[Axon] SQLite persist failed, trying AsyncStorage:', sqlErr);
       // Fallback: AsyncStorage
       try {
         await Promise.all([
           AsyncStorage.setItem(MESSAGES_KEY, msgsJson),
           AsyncStorage.setItem(STATE_KEY, stateJson),
         ]);
-      } catch {}
+      } catch (asErr) {
+        if (__DEV__) console.warn('[Axon] AsyncStorage persist also failed:', asErr);
+      }
     }
   }, []);
 
@@ -242,20 +252,23 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
 
   const autoLearnFromWeb = useCallback(async (
     resultText: string,
-    source: string,
+    provider: string,
     query: string,
   ) => {
     if (!dbReady) return;
     try {
       const domain = detectTopicCategory(query);
+      const label = `${query.slice(0, 48)} [${provider.slice(0, 20)}]`.slice(0, 80);
       await insertKnowledgeEntry({
         content: resultText.slice(0, 800),
-        label: query.slice(0, 60),
-        source: source || 'web',
+        label,
+        source: 'web',
         domain: domain || 'general',
         importance: 0.6,
       });
-    } catch {}
+    } catch (err) {
+      if (__DEV__) console.warn('[Axon] autoLearnFromWeb failed:', err);
+    }
   }, [dbReady]);
 
   // ─── sendMessage ──────────────────────────────────────────────────────────
