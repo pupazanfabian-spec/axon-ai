@@ -382,6 +382,11 @@ export default function ChatScreen() {
           keyboardShouldPersistTaps="handled"
           scrollEnabled={!!messages.length}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          initialNumToRender={15}
+          maxToRenderPerBatch={8}
+          windowSize={8}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
           ListFooterComponent={
             webSearching
               ? <ThinkingIndicator webSearch={true} />

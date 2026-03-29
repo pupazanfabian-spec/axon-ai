@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated, Clipboard, Modal, Platform, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
@@ -138,10 +138,14 @@ const SYNTAX_COLORS: Record<Token['type'], string> = {
   plain: '#D4D4D4',
 };
 
-function CodeBlock({ code, language }: { code: string; language: string }) {
+const CodeBlock = memo(function CodeBlock({ code, language }: { code: string; language: string }) {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
-  const lines = code.split('\n');
+  const lines = useMemo(() => code.split('\n'), [code]);
+  const tokenizedLines = useMemo(
+    () => lines.map(line => tokenizeLine(line, language)),
+    [lines, language],
+  );
 
   const handleCopy = async () => {
     Clipboard.setString(code);
@@ -219,24 +223,21 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
           </View>
           {/* Cod cu highlighting */}
           <View style={codeStyles.codeLines}>
-            {lines.map((line, i) => {
-              const tokens = tokenizeLine(line, language);
-              return (
-                <View key={i} style={codeStyles.codeLine}>
-                  {tokens.map((tok, j) => (
-                    <Text key={j} style={[codeStyles.token, { color: SYNTAX_COLORS[tok.type] }]}>
-                      {tok.text}
-                    </Text>
-                  ))}
-                </View>
-              );
-            })}
+            {tokenizedLines.map((tokens, i) => (
+              <View key={i} style={codeStyles.codeLine}>
+                {tokens.map((tok, j) => (
+                  <Text key={j} style={[codeStyles.token, { color: SYNTAX_COLORS[tok.type] }]}>
+                    {tok.text}
+                  </Text>
+                ))}
+              </View>
+            ))}
           </View>
         </View>
       </ScrollView>
     </View>
   );
-}
+});
 
 // ─── Markdown Renderer ────────────────────────────────────────────────────────
 
@@ -314,8 +315,8 @@ function renderInline(text: string): React.ReactNode[] {
   });
 }
 
-function MarkdownContent({ text, isUser }: { text: string; isUser: boolean }) {
-  const segments = parseMarkdown(text);
+const MarkdownContent = memo(function MarkdownContent({ text, isUser }: { text: string; isUser: boolean }) {
+  const segments = useMemo(() => parseMarkdown(text), [text]);
 
   return (
     <View>
@@ -358,7 +359,7 @@ function MarkdownContent({ text, isUser }: { text: string; isUser: boolean }) {
       })}
     </View>
   );
-}
+});
 
 // ─── Context Menu (long-press) ────────────────────────────────────────────────
 
@@ -394,7 +395,7 @@ function MessageContextMenu({
 
 // ─── ChatBubble ───────────────────────────────────────────────────────────────
 
-export default function ChatBubble({ message, index }: Props) {
+const ChatBubble = memo(function ChatBubble({ message, index }: Props) {
   const isUser = message.role === 'user';
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(isUser ? 20 : -20)).current;
@@ -485,7 +486,9 @@ export default function ChatBubble({ message, index }: Props) {
       </Animated.View>
     </>
   );
-}
+});
+
+export default ChatBubble;
 
 const menuStyles = StyleSheet.create({
   overlay: {

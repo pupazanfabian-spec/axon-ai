@@ -304,8 +304,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     setMessages(prev => [...prev, userMsg]);
     setIsThinking(true);
 
-    const thinkMs = 300 + Math.random() * 600;
-    await new Promise(r => setTimeout(r, thinkMs));
+    await new Promise(r => setTimeout(r, 50));
 
     const history = messages.map(m => ({ role: m.role, content: m.content }));
 
@@ -597,7 +596,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
 
   const addDocument = useCallback(async (name: string, content: string) => {
     setIsThinking(true);
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => setTimeout(r, 50));
 
     const response = processDocument(name, content, brainRef.current);
     setBrainState({ ...brainRef.current });
