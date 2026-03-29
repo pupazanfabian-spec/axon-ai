@@ -262,7 +262,7 @@ export default function ChatScreen() {
             onPress={() => setShowAIProvider(true)}
           >
             <Feather
-              name={providerIcon(aiProviderSettings.activeProvider) as any}
+              name={providerIcon(aiProviderSettings.activeProvider)}
               size={20}
               color={aiProviderSettings.activeProvider !== 'none' ? colors.accent : colors.textSecondary}
             />

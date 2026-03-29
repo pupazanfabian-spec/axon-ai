@@ -1159,7 +1159,7 @@ export function processMessage(
 
   // ── 19. Gândire profundă ──────────────────────────────────────────────────
   if (intent === 'gandire_profunda' || intent === 'opinie') {
-    const deep = generateDeepResponse(trimmed, state.mindState, state.selfKnowledge);
+    const deep = generateDeepResponse(trimmed, null, state.mindState, state.userName);
     if (deep) {
       selfUpdate(trimmed, deep, state.selfKnowledge, messageHistory, intent);
       return deep;

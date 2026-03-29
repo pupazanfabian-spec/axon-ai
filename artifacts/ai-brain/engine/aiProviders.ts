@@ -1,14 +1,16 @@
 
 // Axon — AI Providers: Gemini + ChatGPT direct calls de pe telefon
 // Fără server intermediar — apeluri directe din aplicație
-// Cheile sunt stocate local (AsyncStorage), nu transmise nicăieri altundeva
+// Cheile sunt stocate în Keychain (iOS) / Keystore (Android) via expo-secure-store
 
+import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Chei de stocare ────────────────────────────────────────────────────────
 
-const GEMINI_KEY_STORAGE = '@axon_gemini_api_key';
-const OPENAI_KEY_STORAGE = '@axon_openai_api_key';
+const GEMINI_KEY_STORAGE = 'axon_gemini_api_key';
+const OPENAI_KEY_STORAGE = 'axon_openai_api_key';
+// Provider activ nu este sensibil — AsyncStorage e suficient
 const ACTIVE_PROVIDER_STORAGE = '@axon_active_provider';
 
 export type AIProvider = 'none' | 'gemini' | 'openai';
@@ -19,20 +21,42 @@ export interface AIProviderSettings {
   openaiKey: string;
 }
 
-// ─── Persistare chei locale ──────────────────────────────────────────────────
+// ─── Helper SecureStore cu fallback AsyncStorage (web / simulatoare) ────────
+
+async function secureGet(key: string): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(key);
+  } catch {
+    return AsyncStorage.getItem(`@secure_${key}`);
+  }
+}
+
+async function secureSet(key: string, value: string): Promise<void> {
+  try {
+    if (value) {
+      await SecureStore.setItemAsync(key, value);
+    } else {
+      await SecureStore.deleteItemAsync(key);
+    }
+  } catch {
+    await AsyncStorage.setItem(`@secure_${key}`, value);
+  }
+}
+
+// ─── Persistare chei locale (Keychain / Keystore) ────────────────────────────
 
 export async function saveProviderSettings(settings: AIProviderSettings): Promise<void> {
   await Promise.all([
-    AsyncStorage.setItem(GEMINI_KEY_STORAGE, settings.geminiKey),
-    AsyncStorage.setItem(OPENAI_KEY_STORAGE, settings.openaiKey),
+    secureSet(GEMINI_KEY_STORAGE, settings.geminiKey),
+    secureSet(OPENAI_KEY_STORAGE, settings.openaiKey),
     AsyncStorage.setItem(ACTIVE_PROVIDER_STORAGE, settings.activeProvider),
   ]);
 }
 
 export async function loadProviderSettings(): Promise<AIProviderSettings> {
   const [geminiKey, openaiKey, activeProvider] = await Promise.all([
-    AsyncStorage.getItem(GEMINI_KEY_STORAGE),
-    AsyncStorage.getItem(OPENAI_KEY_STORAGE),
+    secureGet(GEMINI_KEY_STORAGE),
+    secureGet(OPENAI_KEY_STORAGE),
     AsyncStorage.getItem(ACTIVE_PROVIDER_STORAGE),
   ]);
   return {

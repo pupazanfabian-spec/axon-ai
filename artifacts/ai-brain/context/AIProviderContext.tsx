@@ -5,13 +5,16 @@
 import React, {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react';
+import { Feather } from '@expo/vector-icons';
 import {
   AIProvider, AIProviderSettings,
-  callActiveProvider, callGemini, callChatGPT,
+  callActiveProvider,
   loadProviderSettings, saveProviderSettings,
   testGeminiKey, testOpenAIKey,
   AXON_SYSTEM_PROMPT,
 } from '@/engine/aiProviders';
+
+export type FeatherIconName = React.ComponentProps<typeof Feather>['name'];
 
 interface AIProviderContextType {
   settings: AIProviderSettings;
@@ -116,7 +119,7 @@ export function providerLabel(provider: AIProvider): string {
   return 'Fără AI cloud';
 }
 
-export function providerIcon(provider: AIProvider): string {
+export function providerIcon(provider: AIProvider): FeatherIconName {
   if (provider === 'gemini') return 'zap';
   if (provider === 'openai') return 'message-circle';
   return 'cpu';

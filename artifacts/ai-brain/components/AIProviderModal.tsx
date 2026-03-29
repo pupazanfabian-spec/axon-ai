@@ -2,7 +2,7 @@
 // Axon — Modal configurare Gemini / ChatGPT
 // Cheile se salvează local pe telefon, niciodată pe server
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -20,12 +20,14 @@ import type { AIProvider } from '@/engine/aiProviders';
 
 const { colors } = Colors;
 
+type FeatherIconName = React.ComponentProps<typeof Feather>['name'];
+
 interface Props {
   visible: boolean;
   onClose: () => void;
 }
 
-const PROVIDER_OPTIONS: { id: AIProvider; label: string; icon: string; desc: string }[] = [
+const PROVIDER_OPTIONS: { id: AIProvider; label: string; icon: FeatherIconName; desc: string }[] = [
   {
     id: 'none',
     label: 'Fără AI cloud',
@@ -56,6 +58,15 @@ export default function AIProviderModal({ visible, onClose }: Props) {
   const [openaiInput, setOpenaiInput] = useState(settings.openaiKey);
   const [savingProvider, setSavingProvider] = useState<AIProvider | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Sincronizează inputurile cu setările persitate la fiecare deschidere a modalului
+  useEffect(() => {
+    if (visible) {
+      setGeminiInput(settings.geminiKey);
+      setOpenaiInput(settings.openaiKey);
+      setSuccessMsg('');
+    }
+  }, [visible, settings.geminiKey, settings.openaiKey]);
 
   const handleSelectProvider = async (provider: AIProvider) => {
     setSavingProvider(provider);
@@ -132,7 +143,7 @@ export default function AIProviderModal({ visible, onClose }: Props) {
                 <View style={[styles.providerIcon, isActive && styles.providerIconActive]}>
                   {isLoading
                     ? <ActivityIndicator size="small" color={colors.primary} />
-                    : <Feather name={opt.icon as any} size={20} color={isActive ? colors.primary : colors.textSecondary} />
+                    : <Feather name={opt.icon} size={20} color={isActive ? colors.primary : colors.textSecondary} />
                   }
                 </View>
                 <View style={styles.providerInfo}>
@@ -227,7 +238,7 @@ export default function AIProviderModal({ visible, onClose }: Props) {
           <View style={styles.infoBox}>
             <Feather name="shield" size={14} color={colors.textMuted} />
             <Text style={styles.infoText}>
-              Cheile API sunt criptate și stocate exclusiv pe telefonul tău. Axon nu trimite cheile pe niciun server.
+              Cheile API sunt stocate în Keychain (iOS) sau Keystore (Android) — spațiul securizat al sistemului. Axon nu le trimite nicăieri altundeva decât direct la providerul ales (Google / OpenAI).
             </Text>
           </View>
         </ScrollView>

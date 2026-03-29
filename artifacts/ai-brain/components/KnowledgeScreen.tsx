@@ -20,6 +20,8 @@ import type { KnowledgeEntry } from '@/engine/database';
 
 const { colors } = Colors;
 
+type FeatherIconName = React.ComponentProps<typeof Feather>['name'];
+
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -27,15 +29,19 @@ interface Props {
 
 type FilterMode = 'all' | 'web' | 'user' | 'dynamic_concept';
 
-const SOURCE_LABELS: Record<string, { label: string; color: string; icon: string }> = {
+const SOURCE_LABELS: Record<string, { label: string; color: string; icon: FeatherIconName }> = {
   web: { label: 'Web', color: colors.accent, icon: 'globe' },
   user: { label: 'Utilizator', color: colors.warning, icon: 'user' },
   dynamic_concept: { label: 'Concept', color: colors.primary, icon: 'cpu' },
 };
 
+const DEFAULT_SOURCE_META: { label: string; color: string; icon: FeatherIconName } = {
+  label: 'Altele', color: colors.textSecondary, icon: 'database',
+};
+
 function getSourceMeta(source: string | undefined) {
   const s = source ?? 'user';
-  return SOURCE_LABELS[s] ?? { label: s, color: colors.textSecondary, icon: 'database' };
+  return SOURCE_LABELS[s] ?? DEFAULT_SOURCE_META;
 }
 
 function importanceBar(importance: number) {
@@ -124,7 +130,7 @@ export default function KnowledgeScreen({ visible, onClose }: Props) {
       <View style={styles.entry}>
         <View style={styles.entryHeader}>
           <View style={[styles.badge, { borderColor: meta.color + '55', backgroundColor: meta.color + '18' }]}>
-            <Feather name={meta.icon as any} size={10} color={meta.color} />
+            <Feather name={meta.icon} size={10} color={meta.color} />
             <Text style={[styles.badgeText, { color: meta.color }]}>{meta.label}</Text>
           </View>
           {item.domain && item.domain !== 'general' && (
