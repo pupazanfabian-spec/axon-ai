@@ -109,6 +109,8 @@ function fetchTimeout(url: string, init: RequestInit): Promise<Response> {
   return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
 }
 
+export type ConversationTurn = { role: 'user' | 'assistant'; content: string };
+
 interface GeminiResult { text: string | null; error: string | null; }
 
 async function callGeminiModel(
@@ -116,10 +118,22 @@ async function callGeminiModel(
   prompt: string,
   apiKey: string,
   systemInstruction?: string,
+  history?: ConversationTurn[],
 ): Promise<GeminiResult> {
   const url = `${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`;
+
+  // Build multi-turn contents array (max 20 turns)
+  const turns = (history ?? []).slice(-20);
+  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [
+    ...turns.map(t => ({
+      role: t.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: t.content }],
+    })),
+    { role: 'user', parts: [{ text: prompt }] },
+  ];
+
   const body = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    contents,
     ...(systemInstruction
       ? { systemInstruction: { parts: [{ text: systemInstruction }] } }
       : {}),
@@ -156,11 +170,12 @@ export async function callGemini(
   prompt: string,
   apiKey: string,
   systemInstruction?: string,
+  history?: ConversationTurn[],
 ): Promise<string | null> {
   if (!apiKey || apiKey.length < 10) return null;
   for (const model of GEMINI_MODELS) {
     try {
-      const { text, error } = await callGeminiModel(model, prompt, apiKey, systemInstruction);
+      const { text, error } = await callGeminiModel(model, prompt, apiKey, systemInstruction, history);
       if (text) return text;
       if (error && !error.includes('not found') && !error.includes('404') && !error.includes('deprecated')) {
         return null;
@@ -205,12 +220,17 @@ export async function callChatGPT(
   prompt: string,
   apiKey: string,
   systemInstruction?: string,
+  history?: ConversationTurn[],
 ): Promise<string | null> {
   if (!apiKey || apiKey.length < 10) return null;
   try {
     const messages: Array<{ role: string; content: string }> = [];
     if (systemInstruction) {
       messages.push({ role: 'system', content: systemInstruction });
+    }
+    // Adaugă istoricul conversației (max 20 turn-uri)
+    for (const turn of (history ?? []).slice(-20)) {
+      messages.push({ role: turn.role, content: turn.content });
     }
     messages.push({ role: 'user', content: prompt });
 
@@ -292,12 +312,12 @@ export function buildRichSystemPrompt(ctx?: AxonContext): string {
   }
 
   if (ctx.entities && ctx.entities.length > 0) {
+    // Entitățile vin pre-filtrate de apelant (rel !== 'eu' = persoane/lucruri menționate)
     const entList = ctx.entities
-      .filter(e => e.relation === 'eu')
       .slice(0, 8)
-      .map(e => e.value)
+      .map(e => `${e.value} (${e.relation})`)
       .join('; ');
-    if (entList) parts.push(`\n\n**Date despre utilizator:** ${entList}.`);
+    if (entList) parts.push(`\n\n**Entități menționate în conversație:** ${entList}.`);
   }
 
   if (ctx.topTopics && ctx.topTopics.length > 0) {
@@ -333,16 +353,17 @@ export async function callActiveProvider(
   prompt: string,
   settings: AIProviderSettings,
   system?: string,
+  history?: ConversationTurn[],
 ): Promise<{ text: string; provider: AIProvider } | null> {
   const sys = system ?? AXON_SYSTEM_PROMPT;
 
   if (settings.activeProvider === 'gemini' && settings.geminiKey) {
-    const text = await callGemini(prompt, settings.geminiKey, sys);
+    const text = await callGemini(prompt, settings.geminiKey, sys, history);
     if (text) return { text, provider: 'gemini' };
   }
 
   if (settings.activeProvider === 'openai' && settings.openaiKey) {
-    const text = await callChatGPT(prompt, settings.openaiKey, sys);
+    const text = await callChatGPT(prompt, settings.openaiKey, sys, history);
     if (text) return { text, provider: 'openai' };
   }
 

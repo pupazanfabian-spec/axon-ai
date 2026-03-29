@@ -13,6 +13,7 @@ import {
   testGeminiKey, testOpenAIKey,
   isSecureStoreFallbackActive,
   AXON_SYSTEM_PROMPT,
+  type ConversationTurn,
 } from '@/engine/aiProviders';
 
 export type FeatherIconName = React.ComponentProps<typeof Feather>['name'];
@@ -28,7 +29,7 @@ interface AIProviderContextType {
   saveGeminiKey: (key: string) => Promise<void>;
   saveOpenAIKey: (key: string) => Promise<void>;
   testKey: (provider: 'gemini' | 'openai', key: string) => Promise<boolean>;
-  generate: (prompt: string, system?: string) => Promise<{ text: string; provider: AIProvider } | null>;
+  generate: (prompt: string, system?: string, history?: ConversationTurn[]) => Promise<{ text: string; provider: AIProvider } | null>;
   clearError: () => void;
 }
 
@@ -97,9 +98,10 @@ export function AIProviderProvider({ children }: { children: React.ReactNode }) 
   const generate = useCallback(async (
     prompt: string,
     system?: string,
+    history?: ConversationTurn[],
   ): Promise<{ text: string; provider: AIProvider } | null> => {
     if (settings.activeProvider === 'none') return null;
-    return callActiveProvider(prompt, settings, system ?? AXON_SYSTEM_PROMPT);
+    return callActiveProvider(prompt, settings, system ?? AXON_SYSTEM_PROMPT, history);
   }, [settings]);
 
   const clearError = useCallback(() => setTestError(''), []);

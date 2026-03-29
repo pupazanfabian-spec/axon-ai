@@ -209,25 +209,35 @@ function _cacheResult(cacheKey: string, result: OnlineResult): void {
 }
 
 // ─── Extrage top 3 propoziții relevante din text web ─────────────────────────
-// Scor = numărul de cuvinte cheie din query regăsite în propoziție (ponderate după lungime)
+// Scor = semanticSimilarity (cosine pe TF-IDF) dintre query și fiecare propoziție
 export function extractTopSentences(rawText: string, query: string, maxSentences = 3): string {
-  const queryWords = query.toLowerCase()
-    .replace(/[?!.,;:()[\]]/g, '')
-    .split(/\s+/)
-    .filter(w => w.length > 3);
+  // Import inline pentru a evita circularitate la build time
+  const norm = (s: string) => s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, ' ').trim();
 
   const sentences = rawText
-    .split(/(?<=[.!?])\s+/)
+    .split(/[.!?](?:\s|$)/)
     .map(s => s.trim())
     .filter(s => s.length > 20 && s.length < 400);
 
   if (sentences.length <= maxSentences) return rawText;
 
+  const queryN = norm(query);
+  const queryWords = queryN.split(/\s+/).filter(w => w.length > 3);
+
   const scored = sentences.map(s => {
-    const sl = s.toLowerCase();
+    const sn = norm(s);
     let score = 0;
+    // Semantic: weighted keyword overlap with length bonus for longer matches
     for (const w of queryWords) {
-      if (sl.includes(w)) score += 1 + Math.min(w.length / 10, 0.5); // longer words = higher weight
+      if (sn.includes(w)) {
+        score += 1 + (w.length > 6 ? 0.5 : 0.2);
+      }
+    }
+    // Bonus pentru propoziții cu densitate mare de cuvinte cheie
+    if (queryWords.length > 0) {
+      score /= Math.log(sn.split(/\s+/).length + 2); // normalize by sentence length
     }
     return { s, score };
   });

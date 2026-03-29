@@ -15,7 +15,8 @@ import { useLLM } from '@/context/LLMContext';
 import { searchOnline, isOnlineIntent, searchOnlineSynthesized, extractTopSentences } from '@/engine/webSearch';
 import { detectQuestionType, synthesizeWebResponse, detectTopicCategory } from '@/engine/responseGenerator';
 import { useAIProvider } from '@/context/AIProviderContext';
-import { buildRichSystemPrompt, type AxonContext } from '@/engine/aiProviders';
+import { buildRichSystemPrompt, type AxonContext, type ConversationTurn } from '@/engine/aiProviders';
+import { semanticSimilarity } from '@/engine/semantic';
 import { loadDynamicConceptsFromDB } from '@/engine/knowledge';
 import type { EntityType } from '@/engine/entities';
 import {
@@ -477,9 +478,9 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
 
         // Construiește context bogat pentru promptul de sistem
         const allFacts = brain.selfKnowledge.learnedFacts;
-        // Selectează top 10 fapte relevante semantic față de mesajul curent
+        // Selectează top 10 fapte relevante folosind semanticSimilarity (cosine pe TF-IDF)
         const rankedFacts = allFacts
-          .map(f => ({ f, score: (f.toLowerCase().split(/\s+/).filter(w => text.toLowerCase().includes(w)).length) }))
+          .map(f => ({ f, score: semanticSimilarity(text, f) }))
           .sort((a, b) => b.score - a.score)
           .slice(0, 10)
           .map(x => x.f);
@@ -500,7 +501,9 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
           conversationCount: brain.conversationCount,
         };
         const richSystem = buildRichSystemPrompt(brainCtx);
-        const cloudResult = await aiGenerate(text, richSystem);
+        // Trimite ultimele 20 turn-uri ale conversației pentru context complet
+        const convHistory = history.slice(-20) as ConversationTurn[];
+        const cloudResult = await aiGenerate(text, richSystem, convHistory);
         if (cloudResult) {
           const providerName = cloudResult.provider === 'gemini' ? '✨ Gemini' : '🤖 ChatGPT';
           response = `${providerName}: ${cloudResult.text}`;
