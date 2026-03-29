@@ -93,9 +93,9 @@ export function addFact(engine: InferenceEngine, fact: string, source: Inference
       engine.rules.push(rule);
     }
   }
-  // Maxim 200 reguli
-  if (engine.rules.length > 200) {
-    engine.rules = engine.rules.slice(-200);
+  // Maxim 500 reguli
+  if (engine.rules.length > 500) {
+    engine.rules = engine.rules.slice(-500);
   }
 }
 

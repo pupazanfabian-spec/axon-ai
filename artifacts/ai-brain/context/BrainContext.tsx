@@ -15,6 +15,7 @@ import { useLLM } from '@/context/LLMContext';
 import { searchOnline, isOnlineIntent } from '@/engine/webSearch';
 import { detectQuestionType, synthesizeWebResponse, detectTopicCategory } from '@/engine/responseGenerator';
 import { useAIProvider } from '@/context/AIProviderContext';
+import { buildRichSystemPrompt, type AxonContext } from '@/engine/aiProviders';
 import { loadDynamicConceptsFromDB } from '@/engine/knowledge';
 import type { EntityType } from '@/engine/entities';
 import {
@@ -413,7 +414,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
         userName: state.userName,
         creatorName: state.creatorId,
         learnedFacts: state.selfKnowledge.learnedFacts.slice(-20),
-        history: history.slice(-12) as { role: 'user' | 'assistant'; content: string }[],
+        history: history.slice(-20) as { role: 'user' | 'assistant'; content: string }[],
       });
       if (llmResp) {
         response = `🧠 ${llmResp}`;
@@ -472,12 +473,33 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     const needsCloudAI = !webAnswered && !answeredFromDB && isClassicFallback && aiSettings.activeProvider !== 'none';
     if (needsCloudAI) {
       try {
-        const cloudResult = await aiGenerate(text);
+        const brainCtx: AxonContext = {
+          userName: brainRef.current.userName ?? undefined,
+          preferredStyle: brainRef.current.selfKnowledge.preferredStyle,
+          topTopics: Object.entries(brainRef.current.selfKnowledge.topicFrequency)
+            .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t),
+          learnedFacts: brainRef.current.selfKnowledge.learnedFacts.slice(-15),
+          inferenceRules: brainRef.current.inferenceEngine.rules
+            .filter(r => r.confidence > 0.6).slice(-5).map(r => r.subject + ' ' + r.predicate),
+          entities: brainRef.current.entityTracker.entities
+            .filter(e => e.relation === 'eu').slice(-8)
+            .map(e => ({ value: e.value, relation: e.relation ?? 'eu' })),
+          recentTopics: brainRef.current.lastTopics,
+          conversationCount: brainRef.current.conversationCount,
+        };
+        const richSystem = buildRichSystemPrompt(brainCtx);
+        const cloudResult = await aiGenerate(text, richSystem);
         if (cloudResult) {
           const providerName = cloudResult.provider === 'gemini' ? '✨ Gemini' : '🤖 ChatGPT';
           response = `${providerName}: ${cloudResult.text}`;
-          // Auto-learn răspunsul cloud în knowledge_entries
           autoLearnFromWeb(cloudResult.text, cloudResult.provider, text);
+          // Auto-extrage fapte din răspunsul AI și le adaugă în memorie
+          const aiSentences = cloudResult.text.split(/[.!?\n]/).filter(s => s.trim().length > 20 && s.trim().length < 200);
+          for (const sent of aiSentences.slice(0, 5)) {
+            if (brainRef.current.selfKnowledge.learnedFacts.length < 200) {
+              brainRef.current.selfKnowledge.learnedFacts.push(sent.trim());
+            }
+          }
         }
       } catch {
         // Cloud AI indisponibil

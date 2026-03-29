@@ -91,17 +91,65 @@ export async function loadProviderSettings(): Promise<AIProviderSettings> {
   };
 }
 
-// ─── Gemini 1.5 Flash ────────────────────────────────────────────────────────
+// ─── Gemini (2.0 Flash Lite → 1.5 Flash fallback) ───────────────────────────
 
-const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_MODELS = [
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
+];
 
-const TIMEOUT_MS = 15000;
+const TIMEOUT_MS = 25000;
 
 function fetchTimeout(url: string, init: RequestInit): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
+interface GeminiResult { text: string | null; error: string | null; }
+
+async function callGeminiModel(
+  model: string,
+  prompt: string,
+  apiKey: string,
+  systemInstruction?: string,
+): Promise<GeminiResult> {
+  const url = `${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`;
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    ...(systemInstruction
+      ? { systemInstruction: { parts: [{ text: systemInstruction }] } }
+      : {}),
+    generationConfig: { temperature: 0.7, maxOutputTokens: 1200, topP: 0.9 },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+    ],
+  };
+
+  const resp = await fetchTimeout(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const data = await resp.json() as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    error?: { message?: string; code?: number };
+  };
+
+  if (!resp.ok || data.error) {
+    const msg = data.error?.message ?? `HTTP ${resp.status}`;
+    return { text: null, error: msg };
+  }
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null;
+  return { text: text && text.length > 1 ? text : null, error: null };
 }
 
 export async function callGemini(
@@ -110,52 +158,43 @@ export async function callGemini(
   systemInstruction?: string,
 ): Promise<string | null> {
   if (!apiKey || apiKey.length < 10) return null;
-  try {
-    const body = {
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      ...(systemInstruction
-        ? { systemInstruction: { parts: [{ text: systemInstruction }] } }
-        : {}),
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 800,
-        topP: 0.9,
-      },
-      safetySettings: [
-        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-      ],
-    };
-
-    const resp = await fetchTimeout(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (!resp.ok) {
-      if (__DEV__) console.warn('[Axon Gemini] HTTP error:', resp.status);
-      return null;
+  for (const model of GEMINI_MODELS) {
+    try {
+      const { text, error } = await callGeminiModel(model, prompt, apiKey, systemInstruction);
+      if (text) return text;
+      if (error && !error.includes('not found') && !error.includes('404') && !error.includes('deprecated')) {
+        return null;
+      }
+    } catch {
+      // încearcă modelul următor
     }
-
-    const data = await resp.json() as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-      error?: { message?: string };
-    };
-
-    if (data.error) {
-      if (__DEV__) console.warn('[Axon Gemini] API error:', data.error.message);
-      return null;
-    }
-
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    return text && text.length > 1 ? text : null;
-  } catch (e) {
-    if (__DEV__) console.warn('[Axon Gemini] callGemini failed:', e);
-    return null;
   }
+  return null;
+}
+
+export async function testGeminiKeyDetailed(apiKey: string): Promise<{ ok: boolean; error: string }> {
+  if (!apiKey || apiKey.length < 10) return { ok: false, error: 'Cheia este prea scurtă.' };
+  for (const model of GEMINI_MODELS) {
+    try {
+      const { text, error } = await callGeminiModel(model, 'Say: ok', apiKey);
+      if (text) return { ok: true, error: '' };
+      if (error) {
+        if (error.includes('API_KEY_INVALID') || error.includes('400')) {
+          return { ok: false, error: `Cheie invalidă (${model}): ${error}` };
+        }
+        if (error.includes('not found') || error.includes('404') || error.includes('deprecated')) {
+          continue;
+        }
+        return { ok: false, error: `Eroare API (${model}): ${error}` };
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('abort') || msg.includes('timeout')) {
+        return { ok: false, error: 'Timeout — verifică conexiunea la internet.' };
+      }
+    }
+  }
+  return { ok: false, error: 'Niciun model Gemini disponibil. Verifică cheia sau conexiunea.' };
 }
 
 // ─── ChatGPT (OpenAI) ────────────────────────────────────────────────────────
@@ -221,6 +260,74 @@ export const AXON_SYSTEM_PROMPT =
   `Ești Axon, un asistent AI personal inteligent. ` +
   `Răspunzi ÎNTOTDEAUNA în română, concis și util. ` +
   `Ești direct, prietenos și rațional. Nu dai răspunsuri generice sau evazive.`;
+
+export interface AxonContext {
+  userName?: string;
+  preferredStyle?: string;
+  topTopics?: string[];
+  learnedFacts?: string[];
+  inferenceRules?: string[];
+  entities?: Array<{ value: string; relation: string }>;
+  recentTopics?: string[];
+  conversationCount?: number;
+}
+
+export function buildRichSystemPrompt(ctx?: AxonContext): string {
+  const base =
+    `Ești Axon, asistentul AI personal, offline-first, inteligent. ` +
+    `Răspunzi ÎNTOTDEAUNA în română, clar și util. ` +
+    `Ești direct, empatic și rațional. Nu dai răspunsuri evazive sau generice. ` +
+    `Bazează-te pe context și pe ceea ce știi despre utilizator pentru răspunsuri personalizate.`;
+
+  if (!ctx) return base;
+
+  const parts: string[] = [base];
+
+  if (ctx.userName) {
+    parts.push(`\n\nUtilizatorul se numește **${ctx.userName}**.`);
+  }
+
+  if (ctx.preferredStyle && ctx.preferredStyle !== 'conversational') {
+    parts.push(`Stilul de comunicare preferat: ${ctx.preferredStyle}.`);
+  }
+
+  if (ctx.entities && ctx.entities.length > 0) {
+    const entList = ctx.entities
+      .filter(e => e.relation === 'eu')
+      .slice(0, 8)
+      .map(e => e.value)
+      .join('; ');
+    if (entList) parts.push(`\n\n**Date despre utilizator:** ${entList}.`);
+  }
+
+  if (ctx.topTopics && ctx.topTopics.length > 0) {
+    parts.push(`\n\n**Interese principale:** ${ctx.topTopics.join(', ')}.`);
+  }
+
+  if (ctx.learnedFacts && ctx.learnedFacts.length > 0) {
+    const factsBlock = ctx.learnedFacts
+      .slice(0, 10)
+      .map((f, i) => `${i + 1}. ${f.slice(0, 150)}`)
+      .join('\n');
+    parts.push(`\n\n**Fapte memorate din conversații anterioare:**\n${factsBlock}`);
+  }
+
+  if (ctx.inferenceRules && ctx.inferenceRules.length > 0) {
+    const rulesBlock = ctx.inferenceRules.slice(0, 5).map(r => `• ${r}`).join('\n');
+    parts.push(`\n\n**Reguli de inferență active:**\n${rulesBlock}`);
+  }
+
+  if (ctx.recentTopics && ctx.recentTopics.length > 0) {
+    parts.push(`\n\n**Subiecte recente:** ${ctx.recentTopics.slice(-5).join(', ')}.`);
+  }
+
+  parts.push(
+    `\n\nUtilizează toate informațiile de mai sus pentru a personaliza răspunsul. ` +
+    `Fii specific, util și evită repetițiile inutile.`,
+  );
+
+  return parts.join(' ');
+}
 
 export async function callActiveProvider(
   prompt: string,

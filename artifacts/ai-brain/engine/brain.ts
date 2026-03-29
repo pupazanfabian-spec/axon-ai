@@ -12,7 +12,7 @@ import {
   adaptResponseStyle, getLearningReport, detectTopic,
   isCorrectionMessage, findRelevantCorrection,
 } from './learning';
-import { extractKeywords, relevanceScore, fuzzyContains, norm } from './semantic';
+import { extractKeywords, relevanceScore, fuzzyContains, norm, semanticSimilarity } from './semantic';
 import {
   EntityTracker, createEntityTracker, updateEntityTracker,
   queryEntity, getEntitySummary,
@@ -421,13 +421,13 @@ function searchDictionary(text: string): string | null {
 type Intent =
   | 'salut' | 'ramas_bun' | 'multumesc' | 'ajutor' | 'ce_poti'
   | 'identitate_axon' | 'da' | 'nu' | 'gluma' | 'motivatie' | 'sfat'
-  | 'data_ora' | 'matematica'
+  | 'data_ora' | 'matematica' | 'conversie_unitati'
   | 'memorie_salveaza' | 'memorie_citeste' | 'memorie_sterge'
   | 'documente_lista' | 'introducere_utilizator'
   | 'creator_declare' | 'creator_verify' | 'raport_invatare'
   | 'definitie' | 'opinie' | 'gandire_profunda'
   | 'conversatie_anterioara' | 'entitate' | 'inferenta' | 'temporala'
-  | 'securitate' | 'constitutie'
+  | 'securitate' | 'constitutie' | 'follow_up' | 'cine_sunt_eu'
   | 'unknown';
 
 interface IntentPattern {
@@ -482,6 +482,21 @@ const INTENT_PATTERNS: IntentPattern[] = [
     intent: 'temporala',
     patterns: [/(azi|astazi|ieri|saptamana trecuta|luna trecuta|recent|ultima sesiune|de curand|ultima oara|sesiunea de)/],
     weight: 8,
+  },
+  {
+    intent: 'follow_up',
+    patterns: [/^(si asta\??|dar asta\??|de ce asta\??|cum adica\??|adica ce\??|si\??|mai\??|continua\.?|mai departe\.?|ok dar|si totusi|spune.?mi mai mult|aprofundeaza|explica mai bine|da dar de ce|da si\??)$/],
+    weight: 8,
+  },
+  {
+    intent: 'cine_sunt_eu',
+    patterns: [/(cine sunt eu|ce stii despre mine|ce iti amintesti despre mine|ce ai retinut despre mine|ce stii despre utilizatorul tau|cu cine vorbesti|imi spui ce stii despre mine)/],
+    weight: 8,
+  },
+  {
+    intent: 'conversie_unitati',
+    patterns: [/(\d+(?:[.,]\d+)?)\s*(km|kilometri|km|metri?|cm|mm|kg|grame?|litri?|ml|ore?|minute?|secunde?|zile?|saptamani?|ani?)\s*(?:in|în|la|cat(?:i|e)?)\s*(km|kilometri|metri?|cm|mm|kg|grame?|litri?|ml|ore?|minute?|secunde?|zile?|saptamani?|ani?)/],
+    weight: 9,
   },
   {
     intent: 'conversatie_anterioara',
@@ -595,6 +610,20 @@ const INTENT_PATTERNS: IntentPattern[] = [
   },
 ];
 
+// Mapare intenție → cuvinte cheie pentru similaritate semantică
+const INTENT_SEMANTIC_LABELS: Partial<Record<Intent, string>> = {
+  definitie: 'ce este defineste explica inseamna descriere informatie despre subiect',
+  gandire_profunda: 'de ce cum functioneaza sens univers viata moarte constiinta gandire explica cauza',
+  sfat: 'sfat ajuta recomandare ce sa fac cum sa pot cum poti sugestie',
+  opinie: 'crezi parerea opinia cum vede gandesti',
+  matematica: 'calcul cat face rezultat suma diferenta produs impart',
+  memorie_salveaza: 'retine memoreaza noteaza tine minte salveaza',
+  conversatie_anterioara: 'am discutat am zis am vorbit ti-am spus inainte anterior amintesti',
+  follow_up: 'continua mai mult explica mai bine aprofundeaza si asta',
+  motivatie: 'motiveaza inspiratie curaj citat incurajeaza',
+  gluma: 'gluma amuzant rade amuzanta',
+};
+
 function detectIntent(text: string): Intent {
   const n = norm(text);
 
@@ -604,7 +633,6 @@ function detectIntent(text: string): Intent {
   for (const { intent, patterns, weight } of INTENT_PATTERNS) {
     for (const rx of patterns) {
       if (rx.test(n)) {
-        // Scor = weight * (1 + specificitate match)
         const matchLen = (n.match(rx)?.[0]?.length ?? 0) / n.length;
         const score = weight * (1 + matchLen);
         if (score > bestScore) {
@@ -613,6 +641,22 @@ function detectIntent(text: string): Intent {
         }
         break;
       }
+    }
+  }
+
+  // Fallback semantic: dacă scorul regex e slab, folosim similaritate semantică
+  if (bestScore < 4 && n.length > 5) {
+    let semBestIntent: Intent = 'unknown';
+    let semBestScore = 0;
+    for (const [intent, label] of Object.entries(INTENT_SEMANTIC_LABELS) as [Intent, string][]) {
+      const sim = semanticSimilarity(n, label);
+      if (sim > semBestScore) {
+        semBestScore = sim;
+        semBestIntent = intent;
+      }
+    }
+    if (semBestScore > 0.15) {
+      bestIntent = semBestIntent;
     }
   }
 
@@ -652,6 +696,112 @@ function handleMath(text: string): string | null {
     } catch {}
   }
   return null;
+}
+
+// ─── Conversii de unități ─────────────────────────────────────────────────────
+
+type ConversionTable = Record<string, Record<string, number>>;
+
+const CONVERSIONS: ConversionTable = {
+  lungime: { km: 1000, m: 1, cm: 0.01, mm: 0.001, mi: 1609.34, ft: 0.3048, inch: 0.0254 },
+  greutate: { t: 1000000, kg: 1000, g: 1, mg: 0.001, lb: 453.592, oz: 28.3495 },
+  volum: { l: 1, ml: 0.001, cl: 0.01, dl: 0.1, m3: 1000, gal: 3.78541 },
+  timp: { an: 31536000, luna: 2592000, saptamana: 604800, zi: 86400, ora: 3600, minut: 60, secunda: 1 },
+};
+
+const UNIT_ALIASES: Record<string, [string, string]> = {
+  km: ['lungime', 'km'], kilometri: ['lungime', 'km'], kilometre: ['lungime', 'km'],
+  m: ['lungime', 'm'], metri: ['lungime', 'm'], metru: ['lungime', 'm'],
+  cm: ['lungime', 'cm'], centimetri: ['lungime', 'cm'],
+  mm: ['lungime', 'mm'], milimetri: ['lungime', 'mm'],
+  kg: ['greutate', 'kg'], kilograme: ['greutate', 'kg'],
+  g: ['greutate', 'g'], grame: ['greutate', 'g'], gram: ['greutate', 'g'],
+  t: ['greutate', 't'], tone: ['greutate', 't'],
+  l: ['volum', 'l'], litri: ['volum', 'l'], litru: ['volum', 'l'],
+  ml: ['volum', 'ml'], mililitri: ['volum', 'ml'],
+  ore: ['timp', 'ora'], ora: ['timp', 'ora'], h: ['timp', 'ora'],
+  minute: ['timp', 'minut'], minut: ['timp', 'minut'], min: ['timp', 'minut'],
+  secunde: ['timp', 'secunda'], secunda: ['timp', 'secunda'], sec: ['timp', 'secunda'],
+  zile: ['timp', 'zi'], zi: ['timp', 'zi'],
+  saptamani: ['timp', 'saptamana'], saptamana: ['timp', 'saptamana'],
+  luni: ['timp', 'luna'], luna: ['timp', 'luna'],
+  ani: ['timp', 'an'], an: ['timp', 'an'],
+};
+
+function handleUnitConversion(text: string): string | null {
+  const n = norm(text);
+  // "X unitate1 in/la unitate2" sau "cat sunt X unitate1 in unitate2"
+  const rx = /(\d+(?:[.,]\d+)?)\s*([a-zăâîșț]+(?:\s[a-zăâîșț]+)?)\s*(?:in|la|cat(?:i|e)?\s+(?:fac|face|e|sunt))\s*([a-zăâîșț]+(?:\s[a-zăâîșț]+)?)/;
+  const m = n.match(rx);
+  if (!m) return null;
+
+  const value = parseFloat(m[1].replace(',', '.'));
+  const fromAlias = (m[2] || '').trim().replace(/\s+/g, '');
+  const toAlias = (m[3] || '').trim().replace(/\s+/g, '');
+
+  const fromInfo = UNIT_ALIASES[fromAlias];
+  const toInfo = UNIT_ALIASES[toAlias];
+
+  if (!fromInfo || !toInfo || fromInfo[0] !== toInfo[0]) return null;
+
+  const [category, fromUnit] = fromInfo;
+  const [, toUnit] = toInfo;
+
+  const convTable = CONVERSIONS[category];
+  if (!convTable || !convTable[fromUnit] || !convTable[toUnit]) return null;
+
+  const valueInBase = value * convTable[fromUnit];
+  const result = valueInBase / convTable[toUnit];
+  const resultFormatted = result % 1 === 0 ? result.toString() : (Math.round(result * 10000) / 10000).toString();
+
+  return `**${value} ${fromAlias} = ${resultFormatted} ${toAlias}**\n\n_(${value} × ${convTable[fromUnit]} ÷ ${convTable[toUnit]})_`;
+}
+
+// ─── Handler follow-up (referință la topicul anterior) ────────────────────────
+
+function handleFollowUp(
+  history: { role: string; content: string }[],
+  state: BrainState,
+): string | null {
+  // Găsește ultimul mesaj al utilizatorului care nu e follow-up
+  const recentUserMsgs = history.filter(m => m.role === 'user').slice(-5);
+  const FOLLOW_UP_PATTERNS = /^(si asta|dar asta|de ce asta|cum adica|adica ce|si\??|mai\??|continua|mai departe|ok dar|si totusi|spune.?mi mai mult|aprofundeaza|explica mai bine|da dar de ce|da si)/;
+
+  let lastRealTopic = '';
+  for (let i = recentUserMsgs.length - 2; i >= 0; i--) {
+    const msg = recentUserMsgs[i]?.content || '';
+    if (!FOLLOW_UP_PATTERNS.test(norm(msg)) && msg.length > 5) {
+      lastRealTopic = msg;
+      break;
+    }
+  }
+
+  // Încearcă și din lastTopics
+  if (!lastRealTopic && state.lastTopics.length > 0) {
+    lastRealTopic = state.lastTopics[state.lastTopics.length - 1];
+  }
+
+  if (!lastRealTopic) return null;
+
+  // Caută mai adânc în dicționar pe topicul precedent
+  const dictResult = searchDictionary(lastRealTopic);
+  if (dictResult) {
+    const extras = [
+      'Continuând de unde am rămas:',
+      'Aprofundând subiectul anterior:',
+      'Mai multe despre ce discutam:',
+    ];
+    return `${pick(extras)}\n\n${dictResult}`;
+  }
+
+  // Caută în knowledge base
+  const concept = findRelevantConceptExtended(lastRealTopic);
+  if (concept) {
+    const extraFact = concept.facts[Math.floor(Math.random() * concept.facts.length)];
+    return `**Aprofundare — ${concept.label}:**\n\n${extraFact}${concept.axonOpinion ? `\n\n💭 *${concept.axonOpinion}*` : ''}`;
+  }
+
+  return `Continui pe subiectul "${lastRealTopic.slice(0, 50)}" — poți fi mai specific ce aspect vrei să aprofundezi?`;
 }
 
 function handleDateTime(): string {
@@ -894,13 +1044,28 @@ export function processMessage(
     /(?:stiai ca|de fapt|retine ca|faptul ca|important:|știi că)\s+(.{10,200})/i,
     /(?:am aflat ca|am citit ca|vreau sa stii ca|sa stii ca)\s+(.{10,200})/i,
   ];
+  let factAdded = false;
   for (const rx of factPatterns) {
     const m = trimmed.match(rx);
     if (m) {
       const fact = m[1].trim();
       addInferenceFact(state.inferenceEngine, fact, 'user');
-      addDynamicConcept(fact, detectTopic(fact), true); // persistDB=true → SQLite
+      addDynamicConcept(fact, detectTopic(fact), true);
+      factAdded = true;
       break;
+    }
+  }
+  // Extrage afirmații declarative generale ("X este Y", "X funcționează prin Y")
+  // — doar dacă nu e o întrebare și textul e suficient de lung
+  if (!factAdded && !trimmed.includes('?') && trimmed.length > 20) {
+    const declarativeRx = /^(.{5,50}?)\s+(este|sunt|e|inseamna|reprezinta|functioneaza|lucreaza|ajuta la|se foloseste pentru)\s+(.{10,150})/i;
+    const dm = trimmed.match(declarativeRx);
+    if (dm) {
+      const factStr = trimmed.slice(0, 200);
+      addInferenceFact(state.inferenceEngine, factStr, 'user');
+      if (state.selfKnowledge.learnedFacts.length < 200) {
+        state.selfKnowledge.learnedFacts.push(factStr);
+      }
     }
   }
 
@@ -1024,14 +1189,57 @@ export function processMessage(
     return response;
   }
 
-  // ── 8. Matematică ─────────────────────────────────────────────────────────
+  // ── 8. Conversii de unități ───────────────────────────────────────────────
+  if (intent === 'conversie_unitati') {
+    const convResult = handleUnitConversion(trimmed);
+    if (convResult) {
+      selfUpdate(trimmed, convResult, state.selfKnowledge, messageHistory, intent);
+      return convResult;
+    }
+  }
+
+  // ── 8b. Matematică ────────────────────────────────────────────────────────
   const mathResult = handleMath(trimmed);
   if (mathResult) {
     selfUpdate(trimmed, mathResult, state.selfKnowledge, messageHistory, intent);
     return mathResult;
   }
+  // Încearcă conversie unitati și fără intent exact detectat
+  const convResult = handleUnitConversion(trimmed);
+  if (convResult) {
+    selfUpdate(trimmed, convResult, state.selfKnowledge, messageHistory, intent);
+    return convResult;
+  }
 
-  // ── 9. Memorie ────────────────────────────────────────────────────────────
+  // ── 9. Follow-up contextual ───────────────────────────────────────────────
+  if (intent === 'follow_up') {
+    const fuResult = handleFollowUp(messageHistory, state);
+    if (fuResult) {
+      selfUpdate(trimmed, fuResult, state.selfKnowledge, messageHistory, intent);
+      return fuResult;
+    }
+  }
+
+  // ── 9b. Cine sunt eu ─────────────────────────────────────────────────────
+  if (intent === 'cine_sunt_eu') {
+    const entities = state.entityTracker.entities.filter(e => e.relation === 'eu');
+    const facts = state.selfKnowledge.learnedFacts.slice(-10);
+    const userName = state.userName;
+    let resp = userName ? `**${userName}** — iată ce știu despre tine:\n\n` : '**Utilizatorul meu** — iată ce știu:\n\n';
+    if (entities.length > 0) {
+      resp += entities.map(e => `• ${e.value}`).join('\n') + '\n\n';
+    }
+    if (facts.length > 0) {
+      resp += '**Fapte din memorie:**\n' + facts.map(f => `• ${f.slice(0, 100)}`).join('\n');
+    }
+    if (!entities.length && !facts.length) {
+      resp = `Nu știu încă mare lucru despre tine${userName ? `, ${userName}` : ''}. Spune-mi ceva despre tine și voi reține!`;
+    }
+    selfUpdate(trimmed, resp, state.selfKnowledge, messageHistory, intent);
+    return resp;
+  }
+
+  // ── 10. Memorie ───────────────────────────────────────────────────────────
   if (['memorie_salveaza', 'memorie_citeste', 'memorie_sterge'].includes(intent)) {
     const r = handleMemory(intent as Intent, trimmed, state);
     if (r) {
