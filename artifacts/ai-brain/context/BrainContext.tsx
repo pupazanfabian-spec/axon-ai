@@ -15,7 +15,20 @@ import { useLLM } from '@/context/LLMContext';
 import { searchOnline, isOnlineIntent } from '@/engine/webSearch';
 import { detectQuestionType, synthesizeWebResponse, detectTopicCategory } from '@/engine/responseGenerator';
 import { loadDynamicConceptsFromDB } from '@/engine/knowledge';
-import { getDB, autoPruneKnowledge, insertKnowledgeEntry, getDBStats } from '@/engine/database';
+import {
+  getDB,
+  autoPruneKnowledge,
+  insertKnowledgeEntry,
+  queryKnowledgeForAnswer,
+  upsertEntity,
+  loadAllEntities,
+  saveBrainStateFull,
+  loadBrainStateFull,
+  saveMessagesFull,
+  loadMessagesFull,
+  markMigrationDone,
+  isMigrationDone,
+} from '@/engine/database';
 
 interface BrainContextType {
   messages: Message[];
@@ -31,6 +44,7 @@ interface BrainContextType {
 
 const BrainContext = createContext<BrainContextType | null>(null);
 
+// Keys AsyncStorage (folosite doar pentru migrare one-time)
 const MESSAGES_KEY = '@axon_v3_messages';
 const STATE_KEY = '@axon_v3_state';
 
@@ -40,6 +54,38 @@ const WELCOME: Message = {
   content: 'Salut! Sunt **Axon** — AI cu minte proprie, offline și online. 🧠\n\n**Ce pot face:**\n🤔 Răspund din 270+ subiecte din memorie\n📡 Caut pe internet când nu știu (Wikipedia, DuckDuckGo)\n🔗 Deduc logic din ce îmi spui\n👤 Rețin persoanele și entitățile menționate\n🕐 Știu ce am discutat azi, ieri, săptămâna trecută\n📄 Studiez fișierele pe care mi le trimiți\n💾 Nu uit nimic între sesiuni\n\n**Caută online:** spune "caută online [subiect]" sau întreabă orice — dacă nu știu din memorie, verific internetul automat.\n\nCum te cheamă? Sau întreabă-mă ceva — orice.',
   timestamp: new Date(),
 };
+
+// ─── Migrare stare din AsyncStorage ──────────────────────────────────────────
+
+function migrateParsedState(parsed: BrainState): BrainState {
+  parsed.learnedDocuments = (parsed.learnedDocuments || []).map(d => ({
+    ...d,
+    addedAt: new Date(d.addedAt),
+  }));
+  if (!parsed.mindState) parsed.mindState = createMindState();
+  if (!parsed.selfKnowledge) parsed.selfKnowledge = createSelfKnowledge();
+  if (parsed.creatorId === undefined) parsed.creatorId = null;
+  if (parsed.isCreatorPresent === undefined) parsed.isCreatorPresent = false;
+  if (!parsed.entityTracker) parsed.entityTracker = createEntityTracker();
+  if (!parsed.inferenceEngine) parsed.inferenceEngine = createInferenceEngine();
+  if (!parsed.temporalMemory) parsed.temporalMemory = createTemporalMemory();
+  if (!parsed.constitutionState) parsed.constitutionState = createConstitutionState();
+  if (!parsed.selfKnowledge.responseQualityMap) {
+    parsed.selfKnowledge.responseQualityMap = {};
+  }
+  if (parsed.selfKnowledge.totalMessages === undefined) {
+    parsed.selfKnowledge.totalMessages = 0;
+  }
+  parsed.selfKnowledge.corrections = (parsed.selfKnowledge.corrections || []).map((c: any) => {
+    if (typeof c === 'object' && 'wrong' in c) {
+      return { wrongResponse: c.wrong, correction: c.correct, intent: 'unknown', at: Date.now() };
+    }
+    return c;
+  });
+  return parsed;
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function BrainProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
@@ -51,95 +97,140 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
   const loaded = useRef(false);
   const { generate: llmGenerate, status: llmStatus } = useLLM();
 
-  // ─── Inițializare la startup: DB + state + concepte dinamice ──────────────
+  // ─── Startup: DB init → migrare → concepte dinamice → entități ────────────
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
 
     (async () => {
-      // 1. Inițializează SQLite (non-blocking față de UI)
       try {
+        // 1. Inițializează SQLite
         await getDB();
+        setDbReady(true);
 
-        // 1a. Auto-pruning la pornire (rulează în background)
+        // 2. Auto-pruning în background
         autoPruneKnowledge().catch(() => {});
 
-        // 1b. Încarcă conceptele dinamice salvate anterior
+        // 3. Încarcă conceptele dinamice salvate anterior din SQLite
         await loadDynamicConceptsFromDB();
 
-        setDbReady(true);
-      } catch {
+        // 4. Verifică dacă migrarea din AsyncStorage a avut loc deja
+        const migrationDone = await isMigrationDone();
+
+        let stateJson: string | null = null;
+        let msgsJson: string | null = null;
+
+        if (!migrationDone) {
+          // 4a. Prima rulare cu SQLite — migrează din AsyncStorage
+          const [asMsgs, asState] = await Promise.all([
+            AsyncStorage.getItem(MESSAGES_KEY),
+            AsyncStorage.getItem(STATE_KEY),
+          ]);
+
+          stateJson = asState;
+          msgsJson = asMsgs;
+
+          // Salvează în SQLite
+          if (asState) await saveBrainStateFull(asState);
+          if (asMsgs) await saveMessagesFull(asMsgs);
+          await markMigrationDone();
+        } else {
+          // 4b. Rulare normală — citește din SQLite
+          [stateJson, msgsJson] = await Promise.all([
+            loadBrainStateFull(),
+            loadMessagesFull(),
+          ]);
+        }
+
+        // 5. Parsează și aplică starea creierului
+        if (stateJson) {
+          try {
+            const parsed = migrateParsedState(JSON.parse(stateJson) as BrainState);
+            brainRef.current = parsed;
+            setBrainState({ ...parsed });
+          } catch {}
+        }
+
+        // 6. Parsează și aplică mesajele
+        if (msgsJson) {
+          try {
+            const msgs = (JSON.parse(msgsJson) as Message[]).map(m => ({
+              ...m,
+              timestamp: new Date(m.timestamp),
+            }));
+            if (msgs.length > 0) setMessages(msgs);
+          } catch {}
+        }
+
+        // 7. Sincronizează entitățile din SQLite → entityTracker (non-blocking)
+        _syncEntitiesFromDB(brainRef.current);
+
+      } catch (e) {
+        // Fallback la AsyncStorage dacă SQLite nu funcționează
         setDbReady(false);
+        try {
+          const [asMsgs, asState] = await Promise.all([
+            AsyncStorage.getItem(MESSAGES_KEY),
+            AsyncStorage.getItem(STATE_KEY),
+          ]);
+          if (asState) {
+            try {
+              const parsed = migrateParsedState(JSON.parse(asState) as BrainState);
+              brainRef.current = parsed;
+              setBrainState({ ...parsed });
+            } catch {}
+          }
+          if (asMsgs) {
+            try {
+              const msgs = (JSON.parse(asMsgs) as Message[]).map(m => ({
+                ...m, timestamp: new Date(m.timestamp),
+              }));
+              if (msgs.length > 0) setMessages(msgs);
+            } catch {}
+          }
+        } catch {}
       }
-
-      // 2. Încarcă starea brain din AsyncStorage (cu migrare pentru câmpuri noi)
-      try {
-        const [savedMsgs, savedState] = await Promise.all([
-          AsyncStorage.getItem(MESSAGES_KEY),
-          AsyncStorage.getItem(STATE_KEY),
-        ]);
-
-        if (savedState) {
-          const parsed = JSON.parse(savedState) as BrainState;
-
-          // Migrare documente
-          parsed.learnedDocuments = (parsed.learnedDocuments || []).map(d => ({
-            ...d,
-            addedAt: new Date(d.addedAt),
-          }));
-
-          // Migrare câmpuri v3/v4
-          if (!parsed.mindState) parsed.mindState = createMindState();
-          if (!parsed.selfKnowledge) parsed.selfKnowledge = createSelfKnowledge();
-          if (parsed.creatorId === undefined) parsed.creatorId = null;
-          if (parsed.isCreatorPresent === undefined) parsed.isCreatorPresent = false;
-
-          // Migrare câmpuri v5 (noi)
-          if (!parsed.entityTracker) parsed.entityTracker = createEntityTracker();
-          if (!parsed.inferenceEngine) parsed.inferenceEngine = createInferenceEngine();
-          if (!parsed.temporalMemory) parsed.temporalMemory = createTemporalMemory();
-          if (!parsed.constitutionState) parsed.constitutionState = createConstitutionState();
-
-          // Migrare selfKnowledge v5
-          if (!parsed.selfKnowledge.responseQualityMap) {
-            parsed.selfKnowledge.responseQualityMap = {};
-          }
-          if (parsed.selfKnowledge.totalMessages === undefined) {
-            parsed.selfKnowledge.totalMessages = 0;
-          }
-          // Migrare corrections (format vechi → nou)
-          parsed.selfKnowledge.corrections = (parsed.selfKnowledge.corrections || []).map((c: any) => {
-            if (typeof c === 'object' && 'wrong' in c) {
-              return { wrongResponse: c.wrong, correction: c.correct, intent: 'unknown', at: Date.now() };
-            }
-            return c;
-          });
-
-          brainRef.current = parsed;
-          setBrainState({ ...parsed });
-        }
-
-        if (savedMsgs) {
-          const msgs = (JSON.parse(savedMsgs) as Message[]).map(m => ({
-            ...m,
-            timestamp: new Date(m.timestamp),
-          }));
-          if (msgs.length > 0) setMessages(msgs);
-        }
-      } catch {}
     })();
   }, []);
 
+  // ─── Persistare ───────────────────────────────────────────────────────────
+
   const persist = useCallback(async (msgs: Message[], state: BrainState) => {
+    const msgsSliced = msgs.slice(-100);
+    const stateJson = JSON.stringify(state);
+    const msgsJson = JSON.stringify(msgsSliced);
     try {
+      // Primar: SQLite
       await Promise.all([
-        AsyncStorage.setItem(MESSAGES_KEY, JSON.stringify(msgs.slice(-100))),
-        AsyncStorage.setItem(STATE_KEY, JSON.stringify(state)),
+        saveBrainStateFull(stateJson),
+        saveMessagesFull(msgsJson),
       ]);
-    } catch {}
+    } catch {
+      // Fallback: AsyncStorage
+      try {
+        await Promise.all([
+          AsyncStorage.setItem(MESSAGES_KEY, msgsJson),
+          AsyncStorage.setItem(STATE_KEY, stateJson),
+        ]);
+      } catch {}
+    }
+  }, []);
+
+  // ─── Sincronizare entități din EntityTracker → SQLite ─────────────────────
+
+  const persistEntities = useCallback((state: BrainState) => {
+    const tracker = state.entityTracker;
+    if (!tracker || !Array.isArray(tracker.entities) || tracker.entities.length === 0) return;
+    // Non-blocking — salvează fiecare entitate în SQLite (cheie = normalized name)
+    Promise.all(
+      tracker.entities.map(entity =>
+        upsertEntity(entity.normalized, entity.type, entity as any).catch(() => {})
+      )
+    ).catch(() => {});
   }, []);
 
   // ─── Auto-learn din web: salvează rezultatele în knowledge_entries ─────────
+
   const autoLearnFromWeb = useCallback(async (
     resultText: string,
     source: string,
@@ -149,7 +240,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     try {
       const domain = detectTopicCategory(query);
       await insertKnowledgeEntry({
-        content: resultText.slice(0, 800), // Limităm la 800 chars
+        content: resultText.slice(0, 800),
         label: query.slice(0, 60),
         source: source || 'web',
         domain: domain || 'general',
@@ -157,6 +248,8 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
       });
     } catch {}
   }, [dbReady]);
+
+  // ─── sendMessage ──────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -200,7 +293,26 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Fallback 2 / Intenție explicită: Căutare online (Wikipedia + DuckDuckGo)
+    // Fallback 2: Interogare knowledge_entries (cunoaștere acumulată din web) ÎNAINTE de internet
+    // Aceasta permite lui Axon să răspundă din baza de date locală fără a mai chema internetul
+    if (isClassicFallback && dbReady) {
+      try {
+        const dbAnswer = await queryKnowledgeForAnswer(text, 0.4);
+        if (dbAnswer) {
+          const qType = detectQuestionType(text);
+          // Sintetizăm răspunsul din knowledge_entries (bumpKnowledgeAccess deja apelat în queryKnowledgeForAnswer)
+          response = synthesizeWebResponse(
+            dbAnswer.content,
+            dbAnswer.source ?? 'Memorie locală',
+            text,
+            qType,
+            { userName: brainRef.current.userName ?? undefined },
+          );
+        }
+      } catch {}
+    }
+
+    // Fallback 3 / Intenție explicită: Căutare online (Wikipedia + DuckDuckGo)
     // searchOnline are cache SQLite 48h intern — apeluri repetate sunt instant
     const shouldSearchOnline = wantsOnline || isClassicFallback;
     if (shouldSearchOnline) {
@@ -220,13 +332,16 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
           autoLearnFromWeb(onlineResult.text, onlineResult.source, text);
         }
       } catch {
-        // Fără internet sau eroare — păstrăm răspunsul local
+        // Fără internet sau eroare — păstrăm răspunsul din DB sau local
       } finally {
         setWebSearching(false);
       }
     }
 
     setBrainState({ ...brainRef.current });
+
+    // Persistează entitățile actualizate în SQLite (non-blocking)
+    persistEntities(brainRef.current);
 
     const aiMsg: Message = {
       id: (Date.now() + 1).toString(),
@@ -242,7 +357,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     });
 
     setIsThinking(false);
-  }, [persist, messages, llmStatus, llmGenerate, autoLearnFromWeb]);
+  }, [persist, messages, llmStatus, llmGenerate, autoLearnFromWeb, persistEntities, dbReady]);
 
   const addDocument = useCallback(async (name: string, content: string) => {
     setIsThinking(true);
@@ -269,11 +384,12 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
   const removeDocument = useCallback((id: string) => {
     brainRef.current.learnedDocuments = brainRef.current.learnedDocuments.filter(d => d.id !== id);
     setBrainState({ ...brainRef.current });
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify(brainRef.current));
+    saveBrainStateFull(JSON.stringify(brainRef.current)).catch(() => {
+      AsyncStorage.setItem(STATE_KEY, JSON.stringify(brainRef.current));
+    });
   }, []);
 
   const clearConversation = useCallback(() => {
-    // Arhivează sesiunea curentă în memoria temporală
     const msgCount = messages.filter(m => m.role === 'user').length;
     archiveCurrentSession(brainRef.current, msgCount);
 
@@ -285,7 +401,6 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     };
     setMessages([reset]);
 
-    // Păstrează tot ce e important între sesiuni
     const prev = brainRef.current;
     brainRef.current = {
       ...createInitialBrainState(),
@@ -298,11 +413,18 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
       entityTracker: prev.entityTracker,
       inferenceEngine: prev.inferenceEngine,
       temporalMemory: prev.temporalMemory,
-      constitutionState: prev.constitutionState, // Constituția NU se resetează
+      constitutionState: prev.constitutionState,
     };
     setBrainState({ ...brainRef.current });
-    AsyncStorage.setItem(MESSAGES_KEY, JSON.stringify([reset]));
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify(brainRef.current));
+
+    const stateJson = JSON.stringify(brainRef.current);
+    const msgsJson = JSON.stringify([reset]);
+    saveBrainStateFull(stateJson).catch(() => {
+      AsyncStorage.setItem(STATE_KEY, stateJson);
+    });
+    saveMessagesFull(msgsJson).catch(() => {
+      AsyncStorage.setItem(MESSAGES_KEY, msgsJson);
+    });
   }, [messages]);
 
   return (
@@ -319,4 +441,34 @@ export function useBrain() {
   const ctx = useContext(BrainContext);
   if (!ctx) throw new Error('useBrain must be used within BrainProvider');
   return ctx;
+}
+
+// ─── Sincronizare entități din SQLite → EntityTracker (non-blocking) ──────────
+
+async function _syncEntitiesFromDB(state: BrainState): Promise<void> {
+  try {
+    const { loadAllEntities } = await import('@/engine/database');
+    const rows = await loadAllEntities();
+    if (rows.length === 0) return;
+    if (!Array.isArray(state.entityTracker.entities)) {
+      state.entityTracker.entities = [];
+    }
+    const existingNormalized = new Set(state.entityTracker.entities.map(e => e.normalized));
+    for (const row of rows) {
+      // Adaugă doar entitățile care nu există deja în tracker (evită duplicate)
+      if (!existingNormalized.has(row.name)) {
+        state.entityTracker.entities.push({
+          id: row.name,
+          type: (row.type as any) ?? 'concept',
+          value: row.data.value ?? row.name,
+          normalized: row.name,
+          firstSeen: row.data.firstSeen ?? 0,
+          occurrences: row.data.occurrences ?? 1,
+          context: row.data.context ?? '',
+          relation: row.data.relation,
+        });
+        existingNormalized.add(row.name);
+      }
+    }
+  } catch {}
 }

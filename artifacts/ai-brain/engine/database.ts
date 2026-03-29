@@ -1,7 +1,7 @@
 
 // Axon — Bază de date locală SQLite
-// Gestionează: knowledge_entries, web_cache, dynamic_concepts, learned_facts
-// expo-sqlite v15 (async API)
+// Gestionează: knowledge_entries, web_cache, dynamic_concepts, learned_facts, entities, brain_state
+// expo-sqlite v16 (async API, Expo SDK 54)
 
 import * as SQLite from 'expo-sqlite';
 
@@ -67,6 +67,22 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       category TEXT DEFAULT 'general',
       created_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS entities (
+      name TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      data_json TEXT NOT NULL,
+      last_updated INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ent_type ON entities(type);
+    CREATE INDEX IF NOT EXISTS idx_ent_updated ON entities(last_updated);
+
+    CREATE TABLE IF NOT EXISTS brain_state (
+      key TEXT PRIMARY KEY,
+      value_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
 }
 
@@ -118,6 +134,53 @@ export async function searchKnowledgeEntries(
     [q, q, limit]
   );
   return rows;
+}
+
+// Caută în knowledge_entries și returnează cel mai bun răspuns pentru o interogare
+// Dacă găsește, apelează și bumpKnowledgeAccess automat
+export async function queryKnowledgeForAnswer(
+  query: string,
+  minImportance = 0.4,
+): Promise<{ content: string; label: string | null; source: string | null; id: number } | null> {
+  const db = await getDB();
+
+  // Extrage cuvinte cheie din interogare (> 3 litere)
+  const words = query.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 3);
+
+  if (words.length === 0) return null;
+
+  // Construiește clauze LIKE pentru fiecare cuvânt cheie
+  const conditions = words.map(() => '(lower(content) LIKE ? OR lower(label) LIKE ?)').join(' OR ');
+  const params: any[] = [];
+  for (const w of words) {
+    params.push(`%${w}%`, `%${w}%`);
+  }
+  params.push(minImportance, 1);
+
+  const row = await db.getFirstAsync<{
+    id: number;
+    content: string;
+    label: string | null;
+    source: string | null;
+    importance: number;
+  }>(
+    `SELECT id, content, label, source, importance
+     FROM knowledge_entries
+     WHERE (${conditions}) AND importance >= ?
+     ORDER BY importance DESC, access_count DESC
+     LIMIT ?`,
+    params
+  );
+
+  if (!row) return null;
+
+  // Bump access count + importance (+0.05, cap 1.0)
+  bumpKnowledgeAccess(row.id).catch(() => {});
+
+  return { content: row.content, label: row.label, source: row.source, id: row.id };
 }
 
 export async function bumpKnowledgeAccess(id: number): Promise<void> {
@@ -273,6 +336,144 @@ export async function getRecentLearnedFacts(limit = 50): Promise<{ content: stri
   );
 }
 
+// ─── Entities (EntityTracker persistence) ────────────────────────────────────
+
+export async function upsertEntity(
+  name: string,
+  type: string,
+  data: Record<string, any>,
+): Promise<void> {
+  const db = await getDB();
+  const now = Date.now();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO entities (name, type, data_json, last_updated)
+     VALUES (?, ?, ?, ?)`,
+    [name, type, JSON.stringify(data), now]
+  );
+}
+
+export async function loadAllEntities(): Promise<Array<{
+  name: string;
+  type: string;
+  data: Record<string, any>;
+  last_updated: number;
+}>> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ name: string; type: string; data_json: string; last_updated: number }>(
+    'SELECT name, type, data_json, last_updated FROM entities ORDER BY last_updated DESC'
+  );
+  return rows.map(r => {
+    let data: Record<string, any> = {};
+    try { data = JSON.parse(r.data_json); } catch {}
+    return { name: r.name, type: r.type, data, last_updated: r.last_updated };
+  });
+}
+
+export async function loadEntitiesByType(type: string): Promise<Array<{
+  name: string;
+  data: Record<string, any>;
+}>> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ name: string; data_json: string }>(
+    'SELECT name, data_json FROM entities WHERE type = ? ORDER BY last_updated DESC',
+    [type]
+  );
+  return rows.map(r => {
+    let data: Record<string, any> = {};
+    try { data = JSON.parse(r.data_json); } catch {}
+    return { name: r.name, data };
+  });
+}
+
+// ─── Brain State (SQLite persistence cu migrare one-time din AsyncStorage) ───
+
+// Salvează o componentă a stării creierului în SQLite
+export async function saveBrainStateComponent(
+  key: string,
+  value: any,
+): Promise<void> {
+  const db = await getDB();
+  const now = Date.now();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO brain_state (key, value_json, updated_at)
+     VALUES (?, ?, ?)`,
+    [key, JSON.stringify(value), now]
+  );
+}
+
+// Încarcă o componentă a stării creierului din SQLite
+export async function loadBrainStateComponent<T>(key: string): Promise<T | null> {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ value_json: string }>(
+    'SELECT value_json FROM brain_state WHERE key = ?',
+    [key]
+  );
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value_json) as T;
+  } catch {
+    return null;
+  }
+}
+
+// Salvează întreaga stare a creierului (serializată) în SQLite
+export async function saveBrainStateFull(stateJson: string): Promise<void> {
+  const db = await getDB();
+  const now = Date.now();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO brain_state (key, value_json, updated_at)
+     VALUES ('full_state', ?, ?)`,
+    [stateJson, now]
+  );
+}
+
+// Încarcă starea completă a creierului din SQLite
+export async function loadBrainStateFull(): Promise<string | null> {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ value_json: string }>(
+    "SELECT value_json FROM brain_state WHERE key = 'full_state'"
+  );
+  return row?.value_json ?? null;
+}
+
+// Salvează mesajele conversației în SQLite
+export async function saveMessagesFull(messagesJson: string): Promise<void> {
+  const db = await getDB();
+  const now = Date.now();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO brain_state (key, value_json, updated_at)
+     VALUES ('messages', ?, ?)`,
+    [messagesJson, now]
+  );
+}
+
+// Încarcă mesajele din SQLite
+export async function loadMessagesFull(): Promise<string | null> {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ value_json: string }>(
+    "SELECT value_json FROM brain_state WHERE key = 'messages'"
+  );
+  return row?.value_json ?? null;
+}
+
+// Marchează că migrarea din AsyncStorage a avut loc
+export async function markMigrationDone(): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO brain_state (key, value_json, updated_at)
+     VALUES ('migration_done', 'true', ?)`,
+    [Date.now()]
+  );
+}
+
+export async function isMigrationDone(): Promise<boolean> {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ value_json: string }>(
+    "SELECT value_json FROM brain_state WHERE key = 'migration_done'"
+  );
+  return row?.value_json === 'true';
+}
+
 // ─── Auto-Pruning ──────────────────────────────────────────────────────────────
 
 export async function autoPruneKnowledge(): Promise<number> {
@@ -304,18 +505,21 @@ export async function getDBStats(): Promise<{
   cacheCount: number;
   conceptsCount: number;
   factsCount: number;
+  entitiesCount: number;
 }> {
   const db = await getDB();
-  const [k, c, dc, lf] = await Promise.all([
+  const [k, c, dc, lf, ent] = await Promise.all([
     db.getFirstAsync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM knowledge_entries'),
     db.getFirstAsync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM web_cache'),
     db.getFirstAsync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM dynamic_concepts'),
     db.getFirstAsync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM learned_facts'),
+    db.getFirstAsync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM entities'),
   ]);
   return {
     knowledgeCount: k?.cnt ?? 0,
     cacheCount: c?.cnt ?? 0,
     conceptsCount: dc?.cnt ?? 0,
     factsCount: lf?.cnt ?? 0,
+    entitiesCount: ent?.cnt ?? 0,
   };
 }
