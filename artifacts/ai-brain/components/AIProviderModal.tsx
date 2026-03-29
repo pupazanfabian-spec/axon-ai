@@ -59,6 +59,8 @@ export default function AIProviderModal({ visible, onClose }: Props) {
   const [openaiInput, setOpenaiInput] = useState(settings.openaiKey);
   const [savingProvider, setSavingProvider] = useState<AIProvider | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [showOpenAIKey, setShowOpenAIKey] = useState(false);
 
   // Sincronizează inputurile cu setările persitate la fiecare deschidere a modalului
   useEffect(() => {
@@ -183,18 +185,24 @@ export default function AIProviderModal({ visible, onClose }: Props) {
             <Text style={styles.cardHint}>
               Obține gratuit de la{' '}
               <Text style={styles.link}>aistudio.google.com</Text>
+              {' '}· Apasă 👁 pentru a lipi cheia
             </Text>
             <View style={styles.keyRow}>
-              <TextInput
-                style={styles.keyInput}
-                value={geminiInput}
-                onChangeText={setGeminiInput}
-                placeholder="AIza..."
-                placeholderTextColor={colors.textMuted}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <View style={styles.keyInputWrapper}>
+                <TextInput
+                  style={styles.keyInput}
+                  value={geminiInput}
+                  onChangeText={setGeminiInput}
+                  placeholder="AIzaSy... (lipește sau scrie)"
+                  placeholderTextColor={colors.textMuted}
+                  secureTextEntry={!showGeminiKey}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowGeminiKey(v => !v)}>
+                  <Feather name={showGeminiKey ? 'eye-off' : 'eye'} size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
                 style={[styles.testBtn, (!geminiInput.trim() || isTesting) && styles.testBtnDisabled]}
                 onPress={handleTestGemini}
@@ -214,18 +222,24 @@ export default function AIProviderModal({ visible, onClose }: Props) {
             <Text style={styles.cardHint}>
               Obține de la{' '}
               <Text style={styles.link}>platform.openai.com/api-keys</Text>
+              {' '}· Apasă 👁 pentru a lipi cheia
             </Text>
             <View style={styles.keyRow}>
-              <TextInput
-                style={styles.keyInput}
-                value={openaiInput}
-                onChangeText={setOpenaiInput}
-                placeholder="sk-..."
-                placeholderTextColor={colors.textMuted}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <View style={styles.keyInputWrapper}>
+                <TextInput
+                  style={styles.keyInput}
+                  value={openaiInput}
+                  onChangeText={setOpenaiInput}
+                  placeholder="sk-... (lipește sau scrie)"
+                  placeholderTextColor={colors.textMuted}
+                  secureTextEntry={!showOpenAIKey}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowOpenAIKey(v => !v)}>
+                  <Feather name={showOpenAIKey ? 'eye-off' : 'eye'} size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
                 style={[styles.testBtn, (!openaiInput.trim() || isTesting) && styles.testBtnDisabled]}
                 onPress={handleTestOpenAI}
@@ -320,12 +334,21 @@ const styles = StyleSheet.create({
   cardHint: { fontSize: 12, color: colors.textMuted, fontFamily: 'Inter_400Regular', marginBottom: 10 },
   link: { color: colors.accent },
   keyRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  keyInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceHigh,
+    borderRadius: 10,
+    borderWidth: 1, borderColor: colors.border,
+  },
   keyInput: {
     flex: 1,
-    backgroundColor: colors.surfaceHigh,
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
     fontSize: 13, color: colors.text, fontFamily: 'Inter_400Regular',
-    borderWidth: 1, borderColor: colors.border,
+  },
+  eyeBtn: {
+    paddingHorizontal: 10, paddingVertical: 10,
   },
   testBtn: {
     backgroundColor: colors.primary,
