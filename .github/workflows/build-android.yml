@@ -21,14 +21,14 @@ jobs:
         with:
           version: 10
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -36,10 +36,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Expo Prebuild (generate Android project)
+      - name: Expo Prebuild
         working-directory: artifacts/ai-brain
         run: npx expo prebuild --platform android --clean --no-install
         env:
@@ -49,7 +46,6 @@ jobs:
         working-directory: artifacts/ai-brain/android
         run: |
           keytool -genkeypair \
-            -v \
             -keystore axon-release.keystore \
             -alias axon \
             -keyalg RSA \
@@ -57,48 +53,41 @@ jobs:
             -validity 10000 \
             -storepass axon2024 \
             -keypass axon2024 \
-            -dname "CN=Axon AI, OU=Mobile, O=Axon, L=RO, S=RO, C=RO"
+            -dname "CN=Axon AI, OU=Mobile, O=Axon, L=RO, S=RO, C=RO" \
+            -noprompt
 
-      - name: Configure signing in build.gradle
-        working-directory: artifacts/ai-brain/android
+      - name: Add signing config to build.gradle
+        working-directory: artifacts/ai-brain/android/app
         run: |
-          cat >> app/build.gradle << 'EOF'
-
-          android.signingConfigs.create("axonRelease") {
-            storeFile file("../axon-release.keystore")
-            storePassword "axon2024"
-            keyAlias "axon"
-            keyPassword "axon2024"
-          }
-          android.buildTypes.release.signingConfig android.signingConfigs.axonRelease
-          EOF
+          sed -i 's/buildTypes {/signingConfigs {\n        axonRelease {\n            storeFile file("..\/axon-release.keystore")\n            storePassword "axon2024"\n            keyAlias "axon"\n            keyPassword "axon2024"\n        }\n    }\n    buildTypes {/' build.gradle
+          sed -i 's/release {/release {\n                signingConfig signingConfigs.axonRelease/' build.gradle
 
       - name: Build Release APK
         working-directory: artifacts/ai-brain/android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon
         env:
           GRADLE_OPTS: '-Xmx4g -XX:MaxMetaspaceSize=512m'
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
-      - name: Find APK
-        id: find_apk
+      - name: Rename and stage APK
         run: |
           APK=$(find artifacts/ai-brain/android/app/build/outputs/apk/release -name "*.apk" | head -1)
-          echo "apk_path=$APK" >> $GITHUB_OUTPUT
-          echo "Found APK: $APK"
+          cp "$APK" Axon-AI-v3.1.0-release.apk
+          ls -lh Axon-AI-v3.1.0-release.apk
 
-      - name: Rename APK
-        run: |
-          cp "${{ steps.find_apk.outputs.apk_path }}" Axon-AI-v3.1.0.apk
-
-      - name: Upload APK as artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Axon-AI-v3.1.0
-          path: Axon-AI-v3.1.0.apk
+          path: Axon-AI-v3.1.0-release.apk
           retention-days: 30
 
-      - name: Build summary
+      - name: Summary
         run: |
-          echo "## Axon AI v3.1.0 Build Complete" >> $GITHUB_STEP_SUMMARY
-          echo "APK ready for download from the Artifacts section above." >> $GITHUB_STEP_SUMMARY
-          echo "**Features:** App Builder Intelligence, 500+ DEV_CONCEPTS, Dev Mode, Project Switcher, Syntax Highlighting" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Axon AI v3.1.0 APK Ready" >> $GITHUB_STEP_SUMMARY
+          echo "Descarcă APK-ul din secțiunea **Artifacts** de mai sus." >> $GITHUB_STEP_SUMMARY
+          echo "### Funcții noi:" >> $GITHUB_STEP_SUMMARY
+          echo "- App Builder Intelligence (500+ DEV_CONCEPTS)" >> $GITHUB_STEP_SUMMARY
+          echo "- Dev Mode cu syntax highlighting" >> $GITHUB_STEP_SUMMARY
+          echo "- Project Switcher" >> $GITHUB_STEP_SUMMARY
+          echo "- OTA update support" >> $GITHUB_STEP_SUMMARY
