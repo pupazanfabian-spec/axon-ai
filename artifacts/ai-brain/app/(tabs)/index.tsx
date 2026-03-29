@@ -2,6 +2,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   FlatList,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -9,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { getAllProjects, setActiveProject as switchActiveProject, Project } from '@/engine/projectMemory';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -45,7 +47,7 @@ export default function ChatScreen() {
   const { isLocked, hasPin, pinLoaded, unlock, setPin, removePin, lock } = usePin();
   const { status: llmStatus, skipped: llmSkipped } = useLLM();
   const { settings: aiProviderSettings } = useAIProvider();
-  const { isDevMode, toggleDevMode, activeProject } = useDevMode();
+  const { isDevMode, toggleDevMode, activeProject, refreshProject } = useDevMode();
 
   const [inputText, setInputText] = useState('');
   const [showMemory, setShowMemory] = useState(false);
@@ -53,6 +55,8 @@ export default function ChatScreen() {
   const [showQuick, setShowQuick] = useState(true);
   const [showAIProvider, setShowAIProvider] = useState(false);
   const [showKnowledge, setShowKnowledge] = useState(false);
+  const [showProjectSwitcher, setShowProjectSwitcher] = useState(false);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
 
   // PIN flow state
   const [pinMode, setPinMode] = useState<PinMode>(null);
@@ -66,6 +70,22 @@ export default function ChatScreen() {
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 120);
   }, []);
+
+  const openProjectSwitcher = useCallback(async () => {
+    try {
+      const projects = await getAllProjects();
+      setAllProjects(projects);
+      setShowProjectSwitcher(true);
+    } catch {}
+  }, []);
+
+  const handleSelectProject = useCallback(async (projectId: string) => {
+    try {
+      await switchActiveProject(projectId);
+      await refreshProject();
+      setShowProjectSwitcher(false);
+    } catch {}
+  }, [refreshProject]);
 
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
@@ -295,13 +315,51 @@ export default function ChatScreen() {
 
       {/* Dev Mode Banner */}
       {isDevMode && (
-        <View style={styles.devBanner}>
+        <TouchableOpacity style={styles.devBanner} onPress={openProjectSwitcher} activeOpacity={0.75}>
           <Feather name="code" size={13} color="#00D4FF" />
-          <Text style={styles.devBannerText}>
-            {activeProject ? `Dev Mode • ${activeProject.name}` : 'Dev Mode activ • Generare cod, debug, explicații'}
+          <Text style={styles.devBannerText} numberOfLines={1}>
+            {activeProject ? `Dev Mode • ${activeProject.name}` : 'Dev Mode activ • atinge pentru proiecte'}
           </Text>
-        </View>
+          <Feather name="chevron-down" size={13} color="#00D4FF" />
+        </TouchableOpacity>
       )}
+
+      {/* Project Switcher Modal */}
+      <Modal
+        visible={showProjectSwitcher}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowProjectSwitcher(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowProjectSwitcher(false)}
+        >
+          <View style={styles.projectSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Proiecte Dev</Text>
+            {allProjects.length === 0 ? (
+              <Text style={styles.sheetEmpty}>Niciun proiect salvat încă.{'\n'}Generează cod în Dev Mode pentru a crea unul.</Text>
+            ) : (
+              allProjects.map(proj => (
+                <TouchableOpacity
+                  key={proj.id}
+                  style={[styles.projectRow, activeProject?.id === proj.id && styles.projectRowActive]}
+                  onPress={() => handleSelectProject(proj.id)}
+                >
+                  <Feather name="folder" size={16} color={activeProject?.id === proj.id ? '#00D4FF' : colors.textSecondary} />
+                  <View style={styles.projectInfo}>
+                    <Text style={[styles.projectName, activeProject?.id === proj.id && { color: '#00D4FF' }]} numberOfLines={1}>{proj.name}</Text>
+                    <Text style={styles.projectStack} numberOfLines={1}>{proj.stack}</Text>
+                  </View>
+                  {activeProject?.id === proj.id && <Feather name="check" size={16} color="#00D4FF" />}
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Messages + Input */}
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={0}>
@@ -493,5 +551,38 @@ const styles = StyleSheet.create({
   },
   devBannerText: {
     fontSize: 11, color: '#00D4FF', fontFamily: 'Inter_500Medium', flex: 1,
+  },
+  modalOverlay: {
+    flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  projectSheet: {
+    backgroundColor: '#12121A', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32,
+  },
+  sheetHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#333',
+    alignSelf: 'center', marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: 16, color: '#fff', fontFamily: 'Inter_600SemiBold', marginBottom: 12,
+  },
+  sheetEmpty: {
+    fontSize: 13, color: colors.textSecondary, textAlign: 'center',
+    paddingVertical: 24, lineHeight: 20,
+  },
+  projectRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 12, borderRadius: 10,
+    paddingHorizontal: 10,
+  },
+  projectRowActive: {
+    backgroundColor: 'rgba(0, 212, 255, 0.08)',
+  },
+  projectInfo: { flex: 1 },
+  projectName: {
+    fontSize: 14, color: '#fff', fontFamily: 'Inter_500Medium',
+  },
+  projectStack: {
+    fontSize: 11, color: colors.textSecondary, marginTop: 2,
   },
 });

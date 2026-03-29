@@ -149,10 +149,22 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const extractSemanticFilename = (src: string, lang: string): string => {
+    const ext = lang === 'typescript' ? 'ts' : lang === 'javascript' ? 'js' : lang === 'bash' ? 'sh' : lang || 'txt';
+    const firstLines = src.split('\n').slice(0, 3).join('\n');
+    // Match patterns: // App.tsx  or  // src/components/Header.tsx  or  /* index.ts */
+    const match = firstLines.match(/(?:\/\/|\/\*)\s*([\w\-./]+\.\w{1,5})/);
+    if (match) {
+      const name = match[1].replace(/[^a-zA-Z0-9._\-]/g, '_');
+      return name;
+    }
+    // Fallback: timestamped generic name
+    return `axon_code_${Date.now()}.${ext}`;
+  };
+
   const handleSave = async () => {
     try {
-      const ext = language === 'typescript' ? 'ts' : language === 'javascript' ? 'js' : language === 'bash' ? 'sh' : language;
-      const filename = `axon_code_${Date.now()}.${ext}`;
+      const filename = extractSemanticFilename(code, language);
       const path = `${documentDirectory ?? ''}${filename}`;
       await writeAsStringAsync(path, code);
       const canShare = await Sharing.isAvailableAsync();
