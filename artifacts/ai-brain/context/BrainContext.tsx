@@ -32,6 +32,15 @@ import {
   isMigrationDone,
   type EntityData,
 } from '@/engine/database';
+import {
+  detectDevIntent, generateDevExplanation, generateFromTemplate,
+  buildAICodePrompt, formatCodeResponse, extractCodeSnippet,
+} from '@/engine/codeGenerator';
+import {
+  getActiveProject, buildProjectContext, formatProjectSummary,
+  createProject, addProjectStep, saveProjectFile,
+} from '@/engine/projectMemory';
+import { useDevMode } from '@/context/DevModeContext';
 
 interface BrainContextType {
   messages: Message[];
@@ -100,6 +109,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
   const loaded = useRef(false);
   const { generate: llmGenerate, status: llmStatus } = useLLM();
   const { generate: aiGenerate, settings: aiSettings } = useAIProvider();
+  const { isDevMode, refreshProject } = useDevMode();
 
   // ─── Startup: DB init → migrare → concepte dinamice → entități ────────────
   useEffect(() => {
@@ -296,6 +306,76 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     await new Promise(r => setTimeout(r, thinkMs));
 
     const history = messages.map(m => ({ role: m.role, content: m.content }));
+
+    // ─── Dev Mode Chain ────────────────────────────────────────────────────────
+    if (isDevMode) {
+      const devIntent = detectDevIntent(text);
+
+      if (devIntent !== 'none') {
+        let devResponse = '';
+
+        // 1. Încearcă offline: template sau explicație din devKnowledge
+        if (devIntent === 'generate') {
+          const templateResult = generateFromTemplate(text);
+          if (templateResult) {
+            devResponse = formatCodeResponse(templateResult);
+            // Salvează fișierele generate în proiectul activ (non-blocking)
+            getActiveProject().then(proj => {
+              if (proj) {
+                for (const file of templateResult.files) {
+                  saveProjectFile(proj.id, file.filename, file.language, file.code).catch(() => {});
+                }
+                refreshProject();
+              }
+            }).catch(() => {});
+          }
+        }
+
+        if (!devResponse && (devIntent === 'explain' || devIntent === 'compare' || devIntent === 'generate')) {
+          const offlineExplanation = generateDevExplanation(text);
+          if (offlineExplanation) {
+            devResponse = offlineExplanation;
+          }
+        }
+
+        // 2. Debug mode: extrage snippet din mesaj și trimite la AI Cloud
+        if (devIntent === 'debug' || !devResponse) {
+          const codeSnippet = extractCodeSnippet(text);
+          const projectContext = await getActiveProject().then(p => p ? buildProjectContext(p) : undefined).catch(() => undefined);
+          const aiPrompt = buildAICodePrompt(text, devIntent === 'debug' ? 'debug' : devIntent, projectContext, codeSnippet);
+
+          // Încearcă AI Cloud
+          if (aiSettings.activeProvider !== 'none') {
+            try {
+              const cloudResult = await aiGenerate(aiPrompt);
+              if (cloudResult) {
+                const providerName = cloudResult.provider === 'gemini' ? '✨ Gemini Dev' : '🤖 ChatGPT Dev';
+                devResponse = `${providerName}:\n\n${cloudResult.text}`;
+                autoLearnFromWeb(cloudResult.text, cloudResult.provider, text);
+              }
+            } catch {}
+          }
+        }
+
+        if (devResponse) {
+          const aiMsg: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: devResponse,
+            timestamp: new Date(),
+          };
+          setMessages(prev => {
+            const next = [...prev, aiMsg];
+            persist(next, brainRef.current);
+            return next;
+          });
+          setIsThinking(false);
+          return;
+        }
+      }
+    }
+    // ─── End Dev Mode Chain ───────────────────────────────────────────────────
+
     let response = processMessage(text, brainRef.current, history);
 
     // Detectează dacă utilizatorul vrea explicit căutare online
@@ -404,7 +484,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     });
 
     setIsThinking(false);
-  }, [persist, messages, llmStatus, llmGenerate, aiGenerate, aiSettings, autoLearnFromWeb, persistEntities, dbReady]);
+  }, [persist, messages, llmStatus, llmGenerate, aiGenerate, aiSettings, autoLearnFromWeb, persistEntities, dbReady, isDevMode, refreshProject]);
 
   const addDocument = useCallback(async (name: string, content: string) => {
     setIsThinking(true);

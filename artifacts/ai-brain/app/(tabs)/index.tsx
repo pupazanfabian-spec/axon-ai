@@ -28,6 +28,7 @@ import { useBrain } from '@/context/BrainContext';
 import { useLLM } from '@/context/LLMContext';
 import { usePin } from '@/context/PinContext';
 import { useAIProvider, providerIcon } from '@/context/AIProviderContext';
+import { useDevMode } from '@/context/DevModeContext';
 import { Message } from '@/engine/brain';
 import Colors from '@/constants/colors';
 
@@ -44,6 +45,7 @@ export default function ChatScreen() {
   const { isLocked, hasPin, pinLoaded, unlock, setPin, removePin, lock } = usePin();
   const { status: llmStatus, skipped: llmSkipped } = useLLM();
   const { settings: aiProviderSettings } = useAIProvider();
+  const { isDevMode, toggleDevMode, activeProject } = useDevMode();
 
   const [inputText, setInputText] = useState('');
   const [showMemory, setShowMemory] = useState(false);
@@ -268,6 +270,16 @@ export default function ChatScreen() {
             />
           </TouchableOpacity>
           <TouchableOpacity
+            style={[styles.headerBtn, isDevMode && styles.devModeBtn]}
+            onPress={toggleDevMode}
+          >
+            <Feather
+              name="code"
+              size={20}
+              color={isDevMode ? '#00D4FF' : colors.textSecondary}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.headerBtn}
             onPress={handlePinButton}
             onLongPress={hasPin ? handleChangPin : undefined}
@@ -280,6 +292,16 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Dev Mode Banner */}
+      {isDevMode && (
+        <View style={styles.devBanner}>
+          <Feather name="code" size={13} color="#00D4FF" />
+          <Text style={styles.devBannerText}>
+            {activeProject ? `Dev Mode • ${activeProject.name}` : 'Dev Mode activ • Generare cod, debug, explicații'}
+          </Text>
+        </View>
+      )}
 
       {/* Messages + Input */}
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={0}>
@@ -303,7 +325,7 @@ export default function ChatScreen() {
           }
         />
 
-        {showQuick && !isThinking && !webSearching && <QuickActions onPress={handleQuickAction} />}
+        {showQuick && !isThinking && !webSearching && <QuickActions onPress={handleQuickAction} devMode={isDevMode} />}
 
         <View style={[styles.inputContainer, { paddingBottom: bottomInset + 8 }]}>
           <TouchableOpacity style={styles.attachBtn} onPress={() => setShowFiles(true)}>
@@ -458,5 +480,18 @@ const styles = StyleSheet.create({
   },
   pinTipText: {
     fontSize: 11, color: colors.textMuted, fontFamily: 'Inter_400Regular',
+  },
+  devModeBtn: {
+    backgroundColor: 'rgba(0, 212, 255, 0.12)',
+    borderRadius: 8,
+  },
+  devBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 6,
+    backgroundColor: 'rgba(0, 212, 255, 0.07)',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0, 212, 255, 0.2)',
+  },
+  devBannerText: {
+    fontSize: 11, color: '#00D4FF', fontFamily: 'Inter_500Medium', flex: 1,
   },
 });

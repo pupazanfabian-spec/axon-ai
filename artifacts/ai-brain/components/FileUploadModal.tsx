@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import { readAsStringAsync } from 'expo-file-system/legacy';
 import Colors from '@/constants/colors';
 import { LearnedDocument } from '@/engine/brain';
 
@@ -63,9 +63,7 @@ export default function FileUploadModal({
         content = await response.text();
       } else {
         // Native: citim via FileSystem
-        content = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
+        content = await readAsStringAsync(uri);
       }
 
       if (!content || content.trim().length === 0) {

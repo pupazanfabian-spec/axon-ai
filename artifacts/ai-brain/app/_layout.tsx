@@ -19,6 +19,7 @@ import { BrainProvider } from "@/context/BrainContext";
 import { LLMProvider } from "@/context/LLMContext";
 import { PinProvider } from "@/context/PinContext";
 import { AIProviderProvider } from "@/context/AIProviderContext";
+import { DevModeProvider } from "@/context/DevModeContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -56,11 +57,13 @@ export default function RootLayout() {
             <KeyboardProvider>
               <LLMProvider>
                 <AIProviderProvider>
-                  <PinProvider>
-                    <BrainProvider>
-                      <RootLayoutNav />
-                    </BrainProvider>
-                  </PinProvider>
+                  <DevModeProvider>
+                    <PinProvider>
+                      <BrainProvider>
+                        <RootLayoutNav />
+                      </BrainProvider>
+                    </PinProvider>
+                  </DevModeProvider>
                 </AIProviderProvider>
               </LLMProvider>
             </KeyboardProvider>

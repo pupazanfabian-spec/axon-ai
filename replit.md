@@ -1,5 +1,29 @@
 # Workspace
 
+## Axon AI — Mobile App (artifacts/ai-brain)
+
+Aplicație mobilă AI asistentă offline/online (Expo/React Native, Android, cont pfabianq).
+
+**Versiune curentă: 3.1.0**
+
+### Funcționalități implementate:
+- Task #1: SQLite 6 tabele, EntityData, EAS build
+- Task #2: AI Providers (Gemini/ChatGPT), web search paralel, KnowledgeScreen, SecureStore
+- Task #3: **App Builder Intelligence + Syntax Highlighting + Dev Mode**
+  - `engine/devKnowledge.ts` — 500+ concepte programare, comparații stack, 20+ template-uri app
+  - `engine/codeGenerator.ts` — detectare tip app, system prompt expert, generare cod offline+AI
+  - `engine/projectMemory.ts` — stare proiect activ SQLite, multi-proiect, pași, fișiere generate
+  - `components/ChatBubble.tsx` — syntax highlighting complet (VSCode dark theme), numere de linie, Copiază + Salvează fișier, markdown renderer cu headings/bullets/inline-code
+  - `context/DevModeContext.tsx` — stare globală Dev Mode, proiect activ
+  - `context/BrainContext.tsx` — Dev Mode chain: detectIntent → devKnowledge → codeGenerator → projectMemory → AI Cloud
+  - `app/(tabs)/index.tsx` — buton `</>` în header, Dev Mode banner, Dev QuickActions
+  - `components/QuickActions.tsx` — QuickActions specifice Dev Mode (10 template-uri + concepte)
+  - `expo-file-system/legacy` + `expo-sharing` pentru export cod
+
+### EAS Build procedure:
+Din `artifacts/ai-brain/`: git add + commit, apoi:
+`EXPO_TOKEN=BJjNijWXYgYgvBhK5TV-TBWVuL9QwkXuMI-2gtIv EXPO_NO_GIT_STATUS=1 GIT_OPTIONAL_LOCKS=1 eas build --platform android --profile preview --non-interactive --no-wait`
+
 ## Overview
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.

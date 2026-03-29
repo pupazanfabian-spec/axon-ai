@@ -3,7 +3,14 @@
 // Funcționează DOAR în development build (nu în Expo Go)
 // În Expo Go, isLlamaAvailable = false și creierul clasic preia controlul
 
-import * as FileSystem from 'expo-file-system';
+import {
+  documentDirectory,
+  getInfoAsync,
+  makeDirectoryAsync,
+  deleteAsync,
+  createDownloadResumable,
+  writeAsStringAsync,
+} from 'expo-file-system/legacy';
 
 // Import condiționat — nu crăpă dacă llama.rn nu e disponibil (Expo Go)
 let initLlama: any = null;
@@ -33,7 +40,7 @@ export const MODEL_CONFIG = {
 };
 
 export function getModelPath(): string {
-  return `${FileSystem.documentDirectory}models/${MODEL_CONFIG.filename}`;
+  return `${documentDirectory}models/${MODEL_CONFIG.filename}`;
 }
 
 // ─── Verificare dacă modelul e descărcat ─────────────────────────────────────
@@ -41,7 +48,7 @@ export function getModelPath(): string {
 export async function isModelDownloaded(): Promise<boolean> {
   try {
     const path = getModelPath();
-    const info = await FileSystem.getInfoAsync(path);
+    const info = await getInfoAsync(path);
     if (!info.exists) return false;
     // Verifică dimensiunea minimă (model valid = >500MB)
     if ('size' in info && typeof info.size === 'number') {
@@ -61,21 +68,21 @@ export async function downloadModel(
   onError: (error: string) => void,
 ): Promise<void> {
   try {
-    const modelDir = `${FileSystem.documentDirectory}models/`;
-    const dirInfo = await FileSystem.getInfoAsync(modelDir);
+    const modelDir = `${documentDirectory}models/`;
+    const dirInfo = await getInfoAsync(modelDir);
     if (!dirInfo.exists) {
-      await FileSystem.makeDirectoryAsync(modelDir, { intermediates: true });
+      await makeDirectoryAsync(modelDir, { intermediates: true });
     }
 
     const modelPath = getModelPath();
 
     // Verifică dacă există deja un download parțial
-    const partialInfo = await FileSystem.getInfoAsync(modelPath + '.part');
+    const partialInfo = await getInfoAsync(modelPath + '.part');
     if (partialInfo.exists) {
-      await FileSystem.deleteAsync(modelPath + '.part', { idempotent: true });
+      await deleteAsync(modelPath + '.part', { idempotent: true });
     }
 
-    const downloadResumable = FileSystem.createDownloadResumable(
+    const downloadResumable = createDownloadResumable(
       MODEL_CONFIG.downloadUrl,
       modelPath,
       {},
@@ -276,10 +283,8 @@ export async function saveTrainingData(
 ): Promise<string | null> {
   try {
     const jsonl = trainingDataToJSONL(pairs);
-    const path = `${FileSystem.documentDirectory}axon_training_${Date.now()}.jsonl`;
-    await FileSystem.writeAsStringAsync(path, jsonl, {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
+    const path = `${documentDirectory}axon_training_${Date.now()}.jsonl`;
+    await writeAsStringAsync(path, jsonl);
     return path;
   } catch {
     return null;

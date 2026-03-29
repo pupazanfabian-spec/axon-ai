@@ -22,27 +22,43 @@ const QUICK_ACTIONS = [
   { label: 'Ce este ADN-ul?', icon: '🔬' },
 ];
 
+const DEV_QUICK_ACTIONS = [
+  { label: 'Generează o aplicație todo React Native', icon: '📱' },
+  { label: 'Cum funcționează useEffect?', icon: '⚛️' },
+  { label: 'React Native vs Flutter vs Ionic', icon: '⚡' },
+  { label: 'Ce este async/await în TypeScript?', icon: '🔄' },
+  { label: 'Generează o aplicație de calculator', icon: '🧮' },
+  { label: 'Explică-mi hooks-urile React', icon: '🪝' },
+  { label: 'SQL vs NoSQL - diferențe', icon: '🗄️' },
+  { label: 'Generează un sistem de autentificare', icon: '🔐' },
+  { label: 'Ce este closure în JavaScript?', icon: '📦' },
+  { label: 'Generează o aplicație weather', icon: '🌤️' },
+];
+
 interface Props {
   onPress: (text: string) => void;
+  devMode?: boolean;
 }
 
-export default function QuickActions({ onPress }: Props) {
+export default function QuickActions({ onPress, devMode = false }: Props) {
+  const actions = devMode ? DEV_QUICK_ACTIONS : QUICK_ACTIONS;
+
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, devMode && styles.devWrapper]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        {QUICK_ACTIONS.map((action) => (
+        {actions.map((action) => (
           <TouchableOpacity
             key={action.label}
-            style={styles.chip}
+            style={[styles.chip, devMode && styles.devChip]}
             onPress={() => onPress(action.label)}
             activeOpacity={0.7}
           >
             <Text style={styles.icon}>{action.icon}</Text>
-            <Text style={styles.label}>{action.label}</Text>
+            <Text style={[styles.label, devMode && styles.devLabel]}>{action.label}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -56,6 +72,10 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingVertical: 8,
     backgroundColor: colors.surface,
+  },
+  devWrapper: {
+    backgroundColor: 'rgba(0, 212, 255, 0.04)',
+    borderTopColor: 'rgba(0, 212, 255, 0.2)',
   },
   container: {
     paddingHorizontal: 12,
@@ -73,6 +93,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: 5,
   },
+  devChip: {
+    backgroundColor: 'rgba(0, 212, 255, 0.08)',
+    borderColor: 'rgba(0, 212, 255, 0.25)',
+  },
   icon: {
     fontSize: 13,
   },
@@ -80,5 +104,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 13,
     fontFamily: 'Inter_500Medium',
+  },
+  devLabel: {
+    color: '#00D4FF',
+    fontSize: 12,
   },
 });
