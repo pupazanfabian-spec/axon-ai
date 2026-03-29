@@ -22,9 +22,12 @@ import FileUploadModal from '@/components/FileUploadModal';
 import PinScreen from '@/components/PinScreen';
 import ModelSetupScreen from '@/components/ModelSetupScreen';
 import FloatingBubble from '@/components/FloatingBubble';
+import AIProviderModal from '@/components/AIProviderModal';
+import KnowledgeScreen from '@/components/KnowledgeScreen';
 import { useBrain } from '@/context/BrainContext';
 import { useLLM } from '@/context/LLMContext';
 import { usePin } from '@/context/PinContext';
+import { useAIProvider, providerIcon } from '@/context/AIProviderContext';
 import { Message } from '@/engine/brain';
 import Colors from '@/constants/colors';
 
@@ -40,11 +43,14 @@ export default function ChatScreen() {
 
   const { isLocked, hasPin, pinLoaded, unlock, setPin, removePin, lock } = usePin();
   const { status: llmStatus, skipped: llmSkipped } = useLLM();
+  const { settings: aiProviderSettings } = useAIProvider();
 
   const [inputText, setInputText] = useState('');
   const [showMemory, setShowMemory] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [showQuick, setShowQuick] = useState(true);
+  const [showAIProvider, setShowAIProvider] = useState(false);
+  const [showKnowledge, setShowKnowledge] = useState(false);
 
   // PIN flow state
   const [pinMode, setPinMode] = useState<PinMode>(null);
@@ -225,10 +231,12 @@ export default function ChatScreen() {
             <Text style={styles.headerTitle}>Axon</Text>
             <Text style={styles.headerSub}>
               {llmStatus === 'ready'
-                ? `🧠 Neural • Offline`
-                : docCount > 0
-                  ? `${docCount} doc. • Offline`
-                  : `v${brainState.selfKnowledge?.intelligenceVersion ?? 1} • Offline`}
+                ? '🧠 Neural • Offline'
+                : aiProviderSettings.activeProvider !== 'none'
+                  ? `✨ ${aiProviderSettings.activeProvider === 'gemini' ? 'Gemini' : 'ChatGPT'} • Hibrid`
+                  : docCount > 0
+                    ? `${docCount} doc. • Offline`
+                    : `v${brainState.selfKnowledge?.intelligenceVersion ?? 1} • Offline`}
             </Text>
           </View>
         </View>
@@ -243,8 +251,21 @@ export default function ChatScreen() {
               )}
             </View>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.headerBtn} onPress={() => setShowKnowledge(true)}>
+            <Feather name="database" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.headerBtn} onPress={() => setShowMemory(true)}>
             <Feather name="cpu" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.headerBtn, aiProviderSettings.activeProvider !== 'none' && styles.headerBtnActive]}
+            onPress={() => setShowAIProvider(true)}
+          >
+            <Feather
+              name={providerIcon(aiProviderSettings.activeProvider) as any}
+              size={20}
+              color={aiProviderSettings.activeProvider !== 'none' ? colors.accent : colors.textSecondary}
+            />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerBtn}
@@ -345,6 +366,14 @@ export default function ChatScreen() {
         onAddDocument={addDocument}
         onRemoveDocument={removeDocument}
       />
+      <AIProviderModal
+        visible={showAIProvider}
+        onClose={() => setShowAIProvider(false)}
+      />
+      <KnowledgeScreen
+        visible={showKnowledge}
+        onClose={() => setShowKnowledge(false)}
+      />
 
       {/* Bulina flotantă Axon */}
       <FloatingBubble
@@ -386,6 +415,7 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 11, fontFamily: 'Inter_400Regular', color: colors.success },
   headerRight: { flexDirection: 'row', gap: 4 },
   headerBtn: { padding: 8, borderRadius: 8 },
+  headerBtnActive: { backgroundColor: 'rgba(0,212,255,0.1)' },
   badge: {
     position: 'absolute', top: -5, right: -6,
     backgroundColor: colors.primary,

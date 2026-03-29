@@ -14,6 +14,7 @@ import { createConstitutionState } from '@/engine/constitution';
 import { useLLM } from '@/context/LLMContext';
 import { searchOnline, isOnlineIntent } from '@/engine/webSearch';
 import { detectQuestionType, synthesizeWebResponse, detectTopicCategory } from '@/engine/responseGenerator';
+import { useAIProvider } from '@/context/AIProviderContext';
 import { loadDynamicConceptsFromDB } from '@/engine/knowledge';
 import type { EntityType } from '@/engine/entities';
 import {
@@ -98,6 +99,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
   const [brainState, setBrainState] = useState<BrainState>(brainRef.current);
   const loaded = useRef(false);
   const { generate: llmGenerate, status: llmStatus } = useLLM();
+  const { generate: aiGenerate, settings: aiSettings } = useAIProvider();
 
   // ─── Startup: DB init → migrare → concepte dinamice → entități ────────────
   useEffect(() => {
@@ -336,10 +338,10 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
       } catch {}
     }
 
-    // Fallback 3 / Intenție explicită: Căutare online (Wikipedia + DuckDuckGo)
-    // Se execută dacă: utilizatorul cere explicit online, SAU nu s-a găsit în DB și e fallback clasic
+    // Fallback 3 / Intenție explicită: Căutare online paralelă (Wikipedia RO + EN + DuckDuckGo)
     // searchOnline are cache SQLite 48h intern — apeluri repetate sunt instant (fără trafic de rețea)
     const shouldSearchOnline = wantsOnline || (isClassicFallback && !answeredFromDB);
+    let webAnswered = false;
     if (shouldSearchOnline) {
       setWebSearching(true);
       try {
@@ -353,13 +355,29 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
             qType,
             { userName: brainRef.current.userName ?? undefined },
           );
-          // Auto-learn: salvează rezultatul web în knowledge_entries (async, non-blocking)
+          webAnswered = true;
           autoLearnFromWeb(onlineResult.text, onlineResult.source, text);
         }
       } catch {
-        // Fără internet sau eroare — păstrăm răspunsul din DB sau local
+        // Fără internet sau eroare — continuăm
       } finally {
         setWebSearching(false);
+      }
+    }
+
+    // Fallback 4: AI Cloud Provider (Gemini / ChatGPT) — dacă niciuna din sursele anterioare nu a răspuns
+    const needsCloudAI = !webAnswered && !answeredFromDB && isClassicFallback && aiSettings.activeProvider !== 'none';
+    if (needsCloudAI) {
+      try {
+        const cloudResult = await aiGenerate(text);
+        if (cloudResult) {
+          const providerName = cloudResult.provider === 'gemini' ? '✨ Gemini' : '🤖 ChatGPT';
+          response = `${providerName}: ${cloudResult.text}`;
+          // Auto-learn răspunsul cloud în knowledge_entries
+          autoLearnFromWeb(cloudResult.text, cloudResult.provider, text);
+        }
+      } catch {
+        // Cloud AI indisponibil
       }
     }
 
@@ -382,7 +400,7 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     });
 
     setIsThinking(false);
-  }, [persist, messages, llmStatus, llmGenerate, autoLearnFromWeb, persistEntities, dbReady]);
+  }, [persist, messages, llmStatus, llmGenerate, aiGenerate, aiSettings, autoLearnFromWeb, persistEntities, dbReady]);
 
   const addDocument = useCallback(async (name: string, content: string) => {
     setIsThinking(true);

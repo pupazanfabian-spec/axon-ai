@@ -1,7 +1,7 @@
 
-// Axon — Motor de căutare online
-// Surse: Wikipedia RO, Wikipedia EN, DuckDuckGo Instant Answers
-// Fără API key — surse publice gratuite
+// Axon — Motor de căutare online v2.0 (paralel)
+// Surse: Wikipedia RO, Wikipedia EN, DuckDuckGo Instant Answers — toate în paralel
+// Fără API key — surse publice gratuite + cache SQLite 48h
 
 export interface OnlineResult {
   found: boolean;
@@ -19,7 +19,7 @@ async function fetchWithTimeout(url: string): Promise<Response> {
   try {
     const resp = await fetch(url, {
       signal: controller.signal,
-      headers: { 'Accept': 'application/json', 'User-Agent': 'Axon-AI/1.1' },
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Axon-AI/2.0' },
     });
     return resp;
   } finally {
@@ -30,50 +30,39 @@ async function fetchWithTimeout(url: string): Promise<Response> {
 // ─── Wikipedia RO ───────────────────────────────────────────────────────────
 async function searchWikipediaRO(query: string): Promise<OnlineResult | null> {
   try {
-    // Pasul 1: caută titlul articolului
     const searchUrl = `https://ro.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=3&format=json&origin=*`;
     const searchResp = await fetchWithTimeout(searchUrl);
     if (!searchResp.ok) return null;
 
-    const searchData: any[] = await searchResp.json();
-    const titles: string[] = searchData[1] || [];
+    const searchData = await searchResp.json() as unknown[];
+    const titles: string[] = Array.isArray(searchData[1]) ? searchData[1] as string[] : [];
     if (titles.length === 0) return null;
 
-    // Pasul 2: ia rezumatul primului articol găsit
     const title = encodeURIComponent(titles[0]);
     const summaryUrl = `https://ro.wikipedia.org/api/rest_v1/page/summary/${title}`;
     const summaryResp = await fetchWithTimeout(summaryUrl);
     if (!summaryResp.ok) return null;
 
-    const summary = await summaryResp.json();
-    const extract: string = summary.extract || '';
+    const summary = await summaryResp.json() as { extract?: string };
+    const extract: string = summary.extract ?? '';
     if (!extract || extract.length < 30) return null;
 
-    // Trunchiem la ~500 caractere pentru lizibilitate
-    const text = extract.length > 500
-      ? extract.slice(0, 497) + '...'
-      : extract;
-
-    return {
-      found: true,
-      text,
-      source: `Wikipedia RO — "${titles[0]}"`,
-      query,
-    };
+    const text = extract.length > 500 ? extract.slice(0, 497) + '...' : extract;
+    return { found: true, text, source: `Wikipedia RO — "${titles[0]}"`, query };
   } catch {
     return null;
   }
 }
 
-// ─── Wikipedia EN (fallback dacă nu există pe RO) ──────────────────────────
+// ─── Wikipedia EN ──────────────────────────────────────────────────────────
 async function searchWikipediaEN(query: string): Promise<OnlineResult | null> {
   try {
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=3&format=json&origin=*`;
     const searchResp = await fetchWithTimeout(searchUrl);
     if (!searchResp.ok) return null;
 
-    const searchData: any[] = await searchResp.json();
-    const titles: string[] = searchData[1] || [];
+    const searchData = await searchResp.json() as unknown[];
+    const titles: string[] = Array.isArray(searchData[1]) ? searchData[1] as string[] : [];
     if (titles.length === 0) return null;
 
     const title = encodeURIComponent(titles[0]);
@@ -81,17 +70,14 @@ async function searchWikipediaEN(query: string): Promise<OnlineResult | null> {
     const summaryResp = await fetchWithTimeout(summaryUrl);
     if (!summaryResp.ok) return null;
 
-    const summary = await summaryResp.json();
-    const extract: string = summary.extract || '';
+    const summary = await summaryResp.json() as { extract?: string };
+    const extract: string = summary.extract ?? '';
     if (!extract || extract.length < 30) return null;
 
-    const text = extract.length > 500
-      ? extract.slice(0, 497) + '...'
-      : extract;
-
+    const text = extract.length > 500 ? extract.slice(0, 497) + '...' : extract;
     return {
       found: true,
-      text: `[Sursă în engleză — tradus automat]\n\n${text}`,
+      text: `[Sursă în engleză]\n\n${text}`,
       source: `Wikipedia EN — "${titles[0]}"`,
       query,
     };
@@ -107,9 +93,13 @@ async function searchDuckDuckGo(query: string): Promise<OnlineResult | null> {
     const resp = await fetchWithTimeout(url);
     if (!resp.ok) return null;
 
-    const data = await resp.json();
+    const data = await resp.json() as {
+      AbstractText?: string;
+      AbstractSource?: string;
+      Answer?: string;
+      RelatedTopics?: Array<{ Text?: string }>;
+    };
 
-    // AbstractText — cel mai relevant
     if (data.AbstractText && data.AbstractText.length > 30) {
       const text = data.AbstractText.length > 400
         ? data.AbstractText.slice(0, 397) + '...'
@@ -122,20 +112,13 @@ async function searchDuckDuckGo(query: string): Promise<OnlineResult | null> {
       };
     }
 
-    // Answer — răspuns direct (de ex. "Ce înseamnă X")
     if (data.Answer && data.Answer.length > 5) {
-      return {
-        found: true,
-        text: data.Answer,
-        source: 'DuckDuckGo — Răspuns instant',
-        query,
-      };
+      return { found: true, text: data.Answer, source: 'DuckDuckGo — Răspuns instant', query };
     }
 
-    // Related topics — primul element dacă nimic altceva nu a mers
-    const related: any[] = data.RelatedTopics || [];
+    const related = data.RelatedTopics ?? [];
     const first = related.find(r => r.Text && r.Text.length > 30);
-    if (first) {
+    if (first?.Text) {
       return {
         found: true,
         text: first.Text.slice(0, 400),
@@ -165,7 +148,6 @@ export function isOnlineIntent(text: string): boolean {
   return ONLINE_TRIGGERS.some(t => lower.includes(t));
 }
 
-// Extrage interogarea curată pentru căutare (elimină trigger words)
 export function extractSearchQuery(text: string): string {
   let query = text;
   const lower = text.toLowerCase();
@@ -178,19 +160,16 @@ export function extractSearchQuery(text: string): string {
     }
   }
 
-  // Elimină punctuație finală
   query = query.replace(/[?!.,;:]+$/, '').trim();
-
-  // Dacă e prea scurt, folosim textul original
   return query.length > 2 ? query : text;
 }
 
-// ─── Funcția principală de căutare (cu cache SQLite 48h) ─────────────────────
+// ─── Căutare paralelă (Wikipedia RO + EN + DuckDuckGo simultan) ──────────────
 export async function searchOnline(query: string): Promise<OnlineResult> {
   const cleanQuery = extractSearchQuery(query);
   const cacheKey = cleanQuery.toLowerCase().trim();
 
-  // Verifică cache-ul SQLite înainte de a face request-uri
+  // Verifică cache-ul SQLite înainte de orice request HTTP
   try {
     const { getCachedWebResult } = await import('./database');
     const cached = await getCachedWebResult(cacheKey);
@@ -199,25 +178,23 @@ export async function searchOnline(query: string): Promise<OnlineResult> {
     }
   } catch {}
 
-  // Încearcă Wikipedia RO primul
-  const roResult = await searchWikipediaRO(cleanQuery);
-  if (roResult) {
-    _cacheResult(cacheKey, roResult);
-    return roResult;
-  }
+  // Lansează toate sursele în paralel
+  const [roResult, enResult, ddgResult] = await Promise.allSettled([
+    searchWikipediaRO(cleanQuery),
+    searchWikipediaEN(cleanQuery),
+    searchDuckDuckGo(cleanQuery),
+  ]);
 
-  // Fallback: Wikipedia EN
-  const enResult = await searchWikipediaEN(cleanQuery);
-  if (enResult) {
-    _cacheResult(cacheKey, enResult);
-    return enResult;
-  }
+  // Prioritate: Wikipedia RO > DuckDuckGo > Wikipedia EN
+  const ro = roResult.status === 'fulfilled' ? roResult.value : null;
+  const en = enResult.status === 'fulfilled' ? enResult.value : null;
+  const ddg = ddgResult.status === 'fulfilled' ? ddgResult.value : null;
 
-  // Fallback final: DuckDuckGo
-  const ddgResult = await searchDuckDuckGo(cleanQuery);
-  if (ddgResult) {
-    _cacheResult(cacheKey, ddgResult);
-    return ddgResult;
+  const best = ro ?? ddg ?? en;
+
+  if (best) {
+    _cacheResult(cacheKey, best);
+    return best;
   }
 
   return {
@@ -228,7 +205,7 @@ export async function searchOnline(query: string): Promise<OnlineResult> {
   };
 }
 
-// Cache async, non-blocking — nu blochează răspunsul
+// Cache async, non-blocking
 function _cacheResult(cacheKey: string, result: OnlineResult): void {
   import('./database').then(({ setCachedWebResult }) => {
     setCachedWebResult(cacheKey, result, 48).catch(() => {});

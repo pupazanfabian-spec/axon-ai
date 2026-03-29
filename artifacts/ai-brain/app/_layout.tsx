@@ -18,6 +18,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BrainProvider } from "@/context/BrainContext";
 import { LLMProvider } from "@/context/LLMContext";
 import { PinProvider } from "@/context/PinContext";
+import { AIProviderProvider } from "@/context/AIProviderContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -54,11 +55,13 @@ export default function RootLayout() {
           <GestureHandlerRootView>
             <KeyboardProvider>
               <LLMProvider>
-                <PinProvider>
-                  <BrainProvider>
-                    <RootLayoutNav />
-                  </BrainProvider>
-                </PinProvider>
+                <AIProviderProvider>
+                  <PinProvider>
+                    <BrainProvider>
+                      <RootLayoutNav />
+                    </BrainProvider>
+                  </PinProvider>
+                </AIProviderProvider>
               </LLMProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
