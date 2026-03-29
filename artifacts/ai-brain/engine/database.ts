@@ -534,6 +534,13 @@ export async function autoPruneKnowledge(): Promise<number> {
   return result.changes;
 }
 
+// ─── Ștergere intrare individuală ────────────────────────────────────────────
+
+export async function deleteKnowledgeEntry(id: number): Promise<void> {
+  const db = await getDB();
+  await db.runAsync('DELETE FROM knowledge_entries WHERE id = ?', [id]);
+}
+
 // ─── Statistici ───────────────────────────────────────────────────────────────
 
 export async function getDBStats(): Promise<{

@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   StyleSheet,
@@ -15,7 +16,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
-import { getAllKnowledgeEntries, getDBStats, autoPruneKnowledge } from '@/engine/database';
+import { getAllKnowledgeEntries, getDBStats, autoPruneKnowledge, deleteKnowledgeEntry } from '@/engine/database';
 import type { KnowledgeEntry } from '@/engine/database';
 
 const { colors } = Colors;
@@ -109,6 +110,25 @@ export default function KnowledgeScreen({ visible, onClose }: Props) {
     setFiltered(result);
   }, [entries, filter, search]);
 
+  const handleDeleteEntry = useCallback((item: KnowledgeEntry) => {
+    Alert.alert(
+      'Șterge intrarea',
+      `Ești sigur că vrei să ștergi "${item.label ?? item.content.slice(0, 40)}…"?`,
+      [
+        { text: 'Anulează', style: 'cancel' },
+        {
+          text: 'Șterge',
+          style: 'destructive',
+          onPress: async () => {
+            if (item.id == null) return;
+            await deleteKnowledgeEntry(item.id);
+            await load();
+          },
+        },
+      ]
+    );
+  }, [load]);
+
   const handlePrune = async () => {
     setPruning(true);
     setPruneMsg('');
@@ -141,6 +161,13 @@ export default function KnowledgeScreen({ visible, onClose }: Props) {
             <View style={[styles.importanceBar, { width: Math.max(8, pct * 0.5), backgroundColor: barColor }]} />
             <Text style={[styles.importancePct, { color: barColor }]}>{pct}%</Text>
           </View>
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => handleDeleteEntry(item)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="trash-2" size={13} color={colors.error} />
+          </TouchableOpacity>
         </View>
         {item.label ? <Text style={styles.entryLabel} numberOfLines={1}>{item.label}</Text> : null}
         <Text style={styles.entryContent} numberOfLines={3}>{item.content}</Text>
@@ -150,7 +177,7 @@ export default function KnowledgeScreen({ visible, onClose }: Props) {
         </View>
       </View>
     );
-  }, []);
+  }, [handleDeleteEntry]);
 
   const keyExtractor = useCallback((item: KnowledgeEntry) => String(item.id ?? Math.random()), []);
 
@@ -337,6 +364,7 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
   domain: { fontSize: 10, color: colors.textMuted, fontFamily: 'Inter_400Regular' },
   spacer: { flex: 1 },
+  deleteBtn: { marginLeft: 6, padding: 2 },
   importanceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   importanceBar: { height: 4, borderRadius: 2 },
   importancePct: { fontSize: 10, fontFamily: 'Inter_500Medium' },

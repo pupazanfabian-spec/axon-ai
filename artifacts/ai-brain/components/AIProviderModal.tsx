@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -69,6 +70,23 @@ export default function AIProviderModal({ visible, onClose }: Props) {
   }, [visible, settings.geminiKey, settings.openaiKey]);
 
   const handleSelectProvider = async (provider: AIProvider) => {
+    // Gemini/OpenAI require a stored key before activation
+    if (provider === 'gemini' && !settings.geminiKey) {
+      Alert.alert(
+        'Cheie lipsă',
+        'Adaugă și validează o cheie API Gemini mai întâi, apoi poți activa providerul.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    if (provider === 'openai' && !settings.openaiKey) {
+      Alert.alert(
+        'Cheie lipsă',
+        'Adaugă și validează o cheie API ChatGPT mai întâi, apoi poți activa providerul.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setSavingProvider(provider);
     clearError();
     setSuccessMsg('');
@@ -238,7 +256,7 @@ export default function AIProviderModal({ visible, onClose }: Props) {
           <View style={styles.infoBox}>
             <Feather name="shield" size={14} color={colors.textMuted} />
             <Text style={styles.infoText}>
-              Cheile API sunt stocate în Keychain (iOS) sau Keystore (Android) — spațiul securizat al sistemului. Axon nu le trimite nicăieri altundeva decât direct la providerul ales (Google / OpenAI).
+              Pe Android/iOS cheile sunt stocate în Keystore/Keychain (zona securizată a sistemului). Pe simulatoare sau web, se folosește stocarea locală standard. Axon nu trimite cheile pe niciun server propriu.
             </Text>
           </View>
         </ScrollView>
