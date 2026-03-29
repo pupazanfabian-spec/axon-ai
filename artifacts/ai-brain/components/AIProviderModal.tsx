@@ -37,15 +37,15 @@ const PROVIDER_OPTIONS: { id: AIProvider; label: string; icon: FeatherIconName; 
   },
   {
     id: 'gemini',
-    label: 'Gemini 1.5 Flash',
+    label: 'Gemini Flash (Google)',
     icon: 'zap',
-    desc: 'Model Google rapid, gratuit cu cheie API din Google AI Studio.',
+    desc: 'Gemini 1.5 Flash — gratuit cu cheie din Google AI Studio. Alege automat cel mai bun model disponibil.',
   },
   {
     id: 'openai',
-    label: 'ChatGPT (GPT-4o mini)',
+    label: 'ChatGPT (GPT-4o)',
     icon: 'message-circle',
-    desc: 'Model OpenAI de calitate înaltă. Necesită cont cu credit.',
+    desc: 'Model OpenAI avansat. Necesită cheie API și cont cu credit activ.',
   },
 ];
 

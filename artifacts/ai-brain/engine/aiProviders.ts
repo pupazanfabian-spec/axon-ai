@@ -95,11 +95,10 @@ export async function loadProviderSettings(): Promise<AIProviderSettings> {
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const GEMINI_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-2.0-flash-exp',
   'gemini-1.5-flash',
   'gemini-1.5-flash-latest',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
   'gemini-1.5-pro-latest',
 ];
 
@@ -179,7 +178,17 @@ export async function callGemini(
     try {
       const { text, error } = await callGeminiModel(model, prompt, apiKey, systemInstruction, history);
       if (text) return text;
-      if (error && !error.includes('not found') && !error.includes('404') && !error.includes('deprecated')) {
+      if (error) {
+        const isSkippable =
+          error.includes('not found') ||
+          error.includes('404') ||
+          error.includes('deprecated') ||
+          error.includes('quota') ||
+          error.includes('RESOURCE_EXHAUSTED') ||
+          error.includes('rate') ||
+          error.includes('429') ||
+          error.includes('limit: 0');
+        if (isSkippable) continue;
         return null;
       }
     } catch {
@@ -196,13 +205,17 @@ export async function testGeminiKeyDetailed(apiKey: string): Promise<{ ok: boole
       const { text, error } = await callGeminiModel(model, 'Say: ok', apiKey);
       if (text) return { ok: true, error: '' };
       if (error) {
-        if (error.includes('API_KEY_INVALID') || error.includes('400')) {
-          return { ok: false, error: `Cheie invalidă (${model}): ${error}` };
+        if (error.includes('API_KEY_INVALID') || error.includes('API_KEY_INVALID') ||
+            (error.includes('400') && !error.includes('quota'))) {
+          return { ok: false, error: `Cheie invalidă: ${error.slice(0, 120)}` };
         }
-        if (error.includes('not found') || error.includes('404') || error.includes('deprecated')) {
-          continue;
-        }
-        return { ok: false, error: `Eroare API (${model}): ${error}` };
+        const isSkippable =
+          error.includes('not found') || error.includes('404') ||
+          error.includes('deprecated') || error.includes('quota') ||
+          error.includes('RESOURCE_EXHAUSTED') || error.includes('rate') ||
+          error.includes('429') || error.includes('limit: 0');
+        if (isSkippable) continue;
+        return { ok: false, error: `Eroare API (${model}): ${error.slice(0, 150)}` };
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
