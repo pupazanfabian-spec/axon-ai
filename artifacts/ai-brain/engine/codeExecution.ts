@@ -366,18 +366,18 @@ puts "Pătrate: #{patrate}"`,
     example: `#!/bin/bash
 # Bash — scripting puternic
 
-# Funcții și variabile
+# Functii si variabile
 salut() {
     local nume="$1"
-    echo "Salut, $nume! 👋"
+    echo "Salut, $nume!"
 }
 
-# Array și manipulare
-fructe=("mere" "pere" "prune" "cireșe")
-echo "Fructe: ${fructe[*]}"
-echo "Nr. fructe: ${#fructe[@]}"
+# Array si manipulare
+fructe=("mere" "pere" "prune" "cirese")
+echo "Fructe: \${fructe[*]}"
+echo "Nr. fructe: \${#fructe[@]}"
 
-# Loop și condiții
+# Loop si conditii
 for i in {1..5}; do
     if [ $((i % 2)) -eq 0 ]; then
         echo "$i este par"
@@ -388,9 +388,8 @@ done
 
 # String manipulation
 text="Axon AI Assistant"
-echo "Majuscule: ${text^^}"
-echo "Lungime: ${#text}"
-echo "Înlocuire: ${text/AI/Inteligent}"
+echo "Lungime: \${#text}"
+echo "Inlocuire: \${text/AI/Inteligent}"
 
 salut "Utilizator"`,
   },
