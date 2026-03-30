@@ -114,7 +114,8 @@ export default function AIProviderModal({ visible, onClose }: Props) {
     const ok = await testKey('gemini', trimmed);
     if (ok) {
       await saveGeminiKey(trimmed);
-      setSuccessMsg('✅ Cheie Gemini salvată și validată!');
+      await setActiveProvider('gemini');
+      setSuccessMsg('✅ Gemini activat și funcționează!');
       setTimeout(() => setSuccessMsg(''), 3000);
     }
   };
@@ -131,7 +132,8 @@ export default function AIProviderModal({ visible, onClose }: Props) {
     const ok = await testKey('openai', trimmed);
     if (ok) {
       await saveOpenAIKey(trimmed);
-      setSuccessMsg('✅ Cheie ChatGPT salvată și validată!');
+      await setActiveProvider('openai');
+      setSuccessMsg('✅ ChatGPT activat și funcționează!');
       setTimeout(() => setSuccessMsg(''), 3000);
     }
   };

@@ -401,7 +401,46 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
     // Detectează dacă utilizatorul vrea explicit căutare online
     const wantsOnline = isOnlineIntent(text);
 
-    // ── Comandă imperativă detectată de brain → bypass total, direct la Cloud AI ──
+    // ── Helper: construieste system prompt bogat din starea creierului ──────────
+    const buildCloudCtx = () => {
+      const brain = brainRef.current;
+      const rankedFacts = brain.selfKnowledge.learnedFacts
+        .map(f => ({ f, score: semanticSimilarity(text, f) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10)
+        .map(x => x.f);
+      const ctx: AxonContext = {
+        userName: brain.userName ?? undefined,
+        preferredStyle: brain.selfKnowledge.preferredStyle,
+        topTopics: Object.entries(brain.selfKnowledge.topicFrequency)
+          .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t),
+        learnedFacts: rankedFacts,
+        inferenceRules: brain.inferenceEngine.rules
+          .filter(r => r.confidence > 0.7).slice(-5).map(r => r.subject + ' ' + r.predicate),
+        entities: brain.entityTracker.entities
+          .filter(e => e.relation !== 'eu').slice(-8)
+          .map(e => ({ value: e.value, relation: e.relation ?? 'context' })),
+        recentTopics: brain.lastTopics,
+        conversationCount: brain.conversationCount,
+      };
+      return buildRichSystemPrompt(ctx);
+    };
+
+    const autoLearnFromCloud = (cloudResult: { text: string; provider: string }) => {
+      autoLearnFromWeb(cloudResult.text, cloudResult.provider, text);
+      const STRUCTURED_FACT = /\b(este|sunt|are|poate|reprezintă|înseamnă|conține|produce|provoacă|implică)\b/i;
+      const brain = brainRef.current;
+      cloudResult.text.split(/[.!\n]/).map(s => s.trim())
+        .filter(s => s.length > 25 && s.length < 220 && STRUCTURED_FACT.test(s) && !brain.selfKnowledge.learnedFacts.includes(s))
+        .slice(0, 3)
+        .forEach(sent => {
+          if (brain.selfKnowledge.learnedFacts.length < 200) brain.selfKnowledge.learnedFacts.push(sent);
+          const bestRule = extractRulesFromFact(sent, 'deduced').find(r => r.confidence >= 0.75);
+          if (bestRule) addFact(brain.inferenceEngine, sent, 'deduced');
+        });
+    };
+
+    // ── Comandă imperativă → direct la Cloud AI ────────────────────────────────
     if (response.startsWith('AXON_CMD:')) {
       const parts = response.slice('AXON_CMD:'.length).split('||');
       const cmdLabel = parts[0] ?? 'comandă';
@@ -409,167 +448,87 @@ export function BrainProvider({ children }: { children: React.ReactNode }) {
 
       if (aiSettings.activeProvider !== 'none') {
         try {
-          const brain = brainRef.current;
-          const rankedFacts = brain.selfKnowledge.learnedFacts
-            .map(f => ({ f, score: semanticSimilarity(text, f) }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 6)
-            .map(x => x.f);
-          const ctx: AxonContext = {
-            userName: brain.userName ?? undefined,
-            learnedFacts: rankedFacts,
-            recentTopics: brain.lastTopics,
-            conversationCount: brain.conversationCount,
-          };
-          const sysPrompt = buildRichSystemPrompt(ctx);
-          const aiResult = await aiGenerate(cmdOriginal, sysPrompt, history.slice(-20) as ConversationTurn[]);
+          const aiResult = await aiGenerate(cmdOriginal, buildCloudCtx(), history.slice(-20) as ConversationTurn[]);
           if (aiResult) {
-            const provIcon = aiResult.provider === 'gemini' ? '✦ Gemini' : '⬡ ChatGPT';
-            response = `${provIcon}: ${aiResult.text.trim()}`;
+            response = aiResult.text.trim();
+            autoLearnFromCloud(aiResult);
           } else {
-            response = `⚠️ Provider AI inactiv. Activează Gemini sau ChatGPT din ⚙️ pentru comenzi de tip "${cmdLabel}".`;
+            response = `⚠️ Provider AI nu răspunde. Verifică cheia API și conexiunea la internet.`;
           }
         } catch {
           response = `⚠️ Eroare la executarea comenzii "${cmdLabel}". Verifică conexiunea și cheia API.`;
         }
       } else {
-        response = `🔌 Comandă: **${cmdLabel}**\n\nActivează un provider AI din ⚙️ → Setări AI pentru a executa această comandă.`;
+        response = `Activează **Gemini** sau **ChatGPT** din meniul ⚙️ pentru a putea folosi comenzi AI avansate (${cmdLabel}).`;
       }
     }
 
-    // Verifică dacă creierul clasic nu a dat un răspuns bun
-    const isClassicFallback = response.startsWith('Nu am date') ||
-      response.startsWith('Nu am găsit') ||
-      response.startsWith('Subiect interesant') ||
-      response.startsWith('Înțeleg ideea');
-
-    // Fallback 1: LLM local (Phi-3 Mini) dacă e disponibil
-    if (isClassicFallback && llmStatus === 'ready') {
-      const state = brainRef.current;
-      const llmResp = await llmGenerate(text, {
-        userName: state.userName,
-        creatorName: state.creatorId,
-        learnedFacts: state.selfKnowledge.learnedFacts.slice(-20),
-        history: history.slice(-20) as { role: 'user' | 'assistant'; content: string }[],
-      });
-      if (llmResp) {
-        response = `🧠 ${llmResp}`;
-      }
-    }
-
-    // Fallback 2: Interogare knowledge_entries (cunoaștere acumulată anterior din web) ÎNAINTE de internet
-    // Dacă găsește un răspuns relevant, NU mai apelăm internetul (cu excepția intenției explicite)
-    let answeredFromDB = false;
-    if (isClassicFallback && dbReady) {
+    // ── Cloud AI PRIMAR: când e activ, răspunde el la ORICE întrebare ──────────
+    else if (aiSettings.activeProvider !== 'none') {
       try {
-        const dbAnswer = await queryKnowledgeForAnswer(text, 0.4);
-        if (dbAnswer) {
-          const qType = detectQuestionType(text);
-          // bumpKnowledgeAccess e apelat automat în queryKnowledgeForAnswer (importance += 0.05)
-          response = synthesizeWebResponse(
-            dbAnswer.content,
-            dbAnswer.source ?? 'Memorie locală',
-            text,
-            qType,
-            { userName: brainRef.current.userName ?? undefined },
-          );
-          answeredFromDB = true; // Short-circuit: nu mai apelăm internetul
+        const cloudResult = await aiGenerate(text, buildCloudCtx(), history.slice(-20) as ConversationTurn[]);
+        if (cloudResult?.text) {
+          response = cloudResult.text.trim();
+          autoLearnFromCloud(cloudResult);
         }
-      } catch {}
-    }
-
-    // Fallback 3 / Intenție explicită: Căutare online paralelă (Wikipedia RO + EN + DuckDuckGo)
-    // searchOnline are cache SQLite 48h intern — apeluri repetate sunt instant (fără trafic de rețea)
-    const shouldSearchOnline = wantsOnline || (isClassicFallback && !answeredFromDB);
-    let webAnswered = false;
-    if (shouldSearchOnline) {
-      setWebSearching(true);
-      try {
-        const onlineResult = await searchOnlineSynthesized(text);
-        if (onlineResult.found) {
-          const qType = detectQuestionType(text);
-          response = synthesizeWebResponse(
-            onlineResult.text,
-            onlineResult.source,
-            text,
-            qType,
-            { userName: brainRef.current.userName ?? undefined },
-          );
-          webAnswered = true;
-          autoLearnFromWeb(onlineResult.text, onlineResult.source, text);
-        }
+        // Dacă Cloud AI eșuează → continuăm cu fallback-urile de mai jos
       } catch {
-        // Fără internet sau eroare — continuăm
-      } finally {
-        setWebSearching(false);
+        // Cloud AI indisponibil temporar — continuăm cu fallback
       }
     }
 
-    // Fallback 4: AI Cloud Provider (Gemini / ChatGPT) — dacă niciuna din sursele anterioare nu a răspuns
-    const needsCloudAI = !webAnswered && !answeredFromDB && isClassicFallback && aiSettings.activeProvider !== 'none';
-    if (needsCloudAI) {
-      try {
-        const brain = brainRef.current;
+    // ── Fallback offline (doar dacă Cloud AI e off sau a eșuat) ───────────────
+    else {
+      const isClassicFallback = response.startsWith('Nu am date') ||
+        response.startsWith('Nu am găsit') ||
+        response.startsWith('Subiect interesant') ||
+        response.startsWith('Înțeleg ideea');
 
-        // Construiește context bogat pentru promptul de sistem
-        const allFacts = brain.selfKnowledge.learnedFacts;
-        // Selectează top 10 fapte relevante folosind semanticSimilarity (cosine pe TF-IDF)
-        const rankedFacts = allFacts
-          .map(f => ({ f, score: semanticSimilarity(text, f) }))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 10)
-          .map(x => x.f);
+      // Fallback 1: LLM local (Phi-3 Mini) dacă e disponibil
+      if (isClassicFallback && llmStatus === 'ready') {
+        const state = brainRef.current;
+        const llmResp = await llmGenerate(text, {
+          userName: state.userName,
+          creatorName: state.creatorId,
+          learnedFacts: state.selfKnowledge.learnedFacts.slice(-20),
+          history: history.slice(-20) as { role: 'user' | 'assistant'; content: string }[],
+        });
+        if (llmResp) response = `🧠 ${llmResp}`;
+      }
 
-        const brainCtx: AxonContext = {
-          userName: brain.userName ?? undefined,
-          preferredStyle: brain.selfKnowledge.preferredStyle,
-          topTopics: Object.entries(brain.selfKnowledge.topicFrequency)
-            .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t),
-          learnedFacts: rankedFacts,
-          inferenceRules: brain.inferenceEngine.rules
-            .filter(r => r.confidence > 0.7).slice(-5).map(r => r.subject + ' ' + r.predicate),
-          // Entități relevante: oameni/lucruri menționate în conversație (rel !== 'eu')
-          entities: brain.entityTracker.entities
-            .filter(e => e.relation !== 'eu').slice(-8)
-            .map(e => ({ value: e.value, relation: e.relation ?? 'context' })),
-          recentTopics: brain.lastTopics,
-          conversationCount: brain.conversationCount,
-        };
-        const richSystem = buildRichSystemPrompt(brainCtx);
-        // Trimite ultimele 20 turn-uri ale conversației pentru context complet
-        const convHistory = history.slice(-20) as ConversationTurn[];
-        const cloudResult = await aiGenerate(text, richSystem, convHistory);
-        if (cloudResult) {
-          const providerName = cloudResult.provider === 'gemini' ? '✨ Gemini' : '🤖 ChatGPT';
-          response = `${providerName}: ${cloudResult.text}`;
-          autoLearnFromWeb(cloudResult.text, cloudResult.provider, text);
-
-          // Auto-extrage fapte structurate din răspunsul AI
-          // Doar propoziții cu structură X este/are/poate Y — nu orice frază
-          const STRUCTURED_FACT = /\b(este|sunt|are|poate|reprezintă|înseamnă|conține|produce|provoacă|implică)\b/i;
-          const aiSentences = cloudResult.text
-            .split(/[.!\n]/)
-            .map(s => s.trim())
-            .filter(s =>
-              s.length > 25 && s.length < 220 &&
-              STRUCTURED_FACT.test(s) &&
-              !brain.selfKnowledge.learnedFacts.includes(s),
+      // Fallback 2: Cunoaștere acumulată anterior din DB
+      let answeredFromDB = false;
+      if (isClassicFallback && dbReady) {
+        try {
+          const dbAnswer = await queryKnowledgeForAnswer(text, 0.4);
+          if (dbAnswer) {
+            response = synthesizeWebResponse(
+              dbAnswer.content, dbAnswer.source ?? 'Memorie locală', text,
+              detectQuestionType(text), { userName: brainRef.current.userName ?? undefined },
             );
-          for (const sent of aiSentences.slice(0, 3)) {
-            // Adaugă în learnedFacts (max 200)
-            if (brain.selfKnowledge.learnedFacts.length < 200) {
-              brain.selfKnowledge.learnedFacts.push(sent);
-            }
-            // Extrage și persistă reguli logice cu confidence ≥ 0.75 (un singur addFact per propoziție)
-            const rules = extractRulesFromFact(sent, 'deduced');
-            const bestRule = rules.find(r => r.confidence >= 0.75);
-            if (bestRule) {
-              addFact(brain.inferenceEngine, sent, 'deduced');
-            }
+            answeredFromDB = true;
           }
+        } catch {}
+      }
+
+      // Fallback 3: Căutare online (Wikipedia RO + EN + DuckDuckGo)
+      const shouldSearchOnline = wantsOnline || (isClassicFallback && !answeredFromDB);
+      if (shouldSearchOnline) {
+        setWebSearching(true);
+        try {
+          const onlineResult = await searchOnlineSynthesized(text);
+          if (onlineResult.found) {
+            response = synthesizeWebResponse(
+              onlineResult.text, onlineResult.source, text,
+              detectQuestionType(text), { userName: brainRef.current.userName ?? undefined },
+            );
+            autoLearnFromWeb(onlineResult.text, onlineResult.source, text);
+          }
+        } catch {
+          // Fără internet sau eroare — continuăm
+        } finally {
+          setWebSearching(false);
         }
-      } catch {
-        // Cloud AI indisponibil
       }
     }
 
